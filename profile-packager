@@ -1,0 +1,13 @@
+#!/bin/bash
+
+function main ()
+{
+	cd $HOME
+	tar -Jcf /tmp/firefox-profile.txz .mozilla .pentadactylrc .pentadactyl
+	gpg -c /tmp/firefox-profile.txz
+	mv /tmp/firefox-profile.txz.gpg $HOME/Dropbox/Sync/firefox-profile
+	rm /tmp/firefox-profile*
+#	dropbox start
+}
+
+main "$@"

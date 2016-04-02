@@ -1,0 +1,65 @@
+#!/bin/bash
+
+function main ()
+{
+	local portnum=9600
+	local file
+	local ip_addr
+	local progname=$(basename $0)
+	
+	case $progname in
+		"send" )
+			if [ $# == 0 ]; then
+				echo "Usage: $progname filename1 [filename2 ...]" >&2
+				exit 0
+			fi
+			ifconfig wlp8s0 | grep -oE 'inet [0-9]{,3}(\.[0-9]{,3}){3}'
+			while [ $# != 0 ]; do
+				file="$1"; shift
+				echo "Sending file ${file}..."
+				nc -vlp$portnum -q1 < "${file}"
+			done
+			;;
+		"recv" )
+			if [ $# == 0 ]; then
+				echo "Usage: $progname IP_Address filename1 [filename2 ...]" >&2
+				exit 0
+			fi
+			ip_addr="$1"; shift
+			while [ $# != 0 ]; do
+				file="$1"; shift
+				echo "Receiving file ${file}..."
+				if [ -e "${file}" ]; then
+					echo "ERROR: file ${file} already exists" >&2
+					read -n1 -p "[A]bort, (O)verwrite, (R)ename, (E)xit: "
+					echo ''
+					case "${REPLY}" in
+						[rR])
+							while [ -e "${file}" ]; do
+								read -p "Enter new name for file: "
+								file="${REPLY}"
+							done
+							;;
+						[eE])
+							exit 0
+							;;
+						[oO])
+							echo "Overwriting file ${file} with new version." >&2
+							;;
+						*)
+							continue
+							;;
+					esac
+				fi
+				nc -v "$ip_addr" "$portnum" > "${file}"
+			done
+			;;
+		*)
+			echo "Script called with incorrect name"
+	esac
+}
+
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

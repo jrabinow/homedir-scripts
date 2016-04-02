@@ -1,0 +1,59 @@
+#!/bin/bash
+
+function main () {
+	mac_addr=$1; shift
+	ip_addr=$1; shift
+	supp_parm=$1; shift
+	eth_device=$1; shift
+	alert_type=$1; shift
+
+	case "${alert_type}" in
+		0)
+			message="IP change for ${mac_addr} to ${ip_addr}"
+			;;
+		1)
+			message="MAC address ${mac_addr} not in whitelist detected"
+			;;
+		2)
+			message="MAC address ${mac_addr} in blacklist detected"
+			;;
+		3)
+			message="New MAC address ${mac_addr} detected"
+			;;
+		4)
+			message="Unauthorized ARP request from ${ip_addr} - ${mac_addr}"
+			;;
+		5)
+			message="Abusive number of ARP requests from ${ip_addr} - ${mac_addr}"
+			;;
+		6)
+			message="MITM ongoing from ${ip_addr} - ${mac_addr}"
+			;;
+		7)
+			message="Global flood detection from ${ip_addr} - ${mac_addr}"
+			;;
+		8)
+			message="New MAC address without IP ${mac_addr}"
+			;;
+		9)
+			message="MAC change ${mac_addr}"
+			;;
+		10)
+			message="MAC expire ${mac_addr}"
+			;;
+		*)
+			message="Error: unknown action"
+			;;
+	esac
+	message+="
+supp_parm: ${supp_parm}
+
+man (8) arpalert
+/etc/arpalert/*"
+
+	xmessage -center "${message}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

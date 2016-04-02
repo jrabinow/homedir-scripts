@@ -1,0 +1,348 @@
+#!/bin/bash
+
+readonly BACKUP_DIR="/home/$USER/Documents/Android/SDCard Backup"
+readonly APP_BACKUP_DIR="${BACKUP_DIR}/AppData"
+readonly PACKAGE_LIST_FILE="${BACKUP_DIR}/Various/package_list"
+
+readonly SDCARD_BACKUPS=(
+	AIMSICD
+	bluetooth
+	Download
+	'GB Roms'
+	GOdroid
+	Media
+	Movies
+	Music
+	PSP
+	Snapchat
+	Snapprefs
+	Snapseed
+	SoundRecorder
+	WhatsApp
+	doom
+	net.andchat
+	wegoigo
+)
+readonly APPDATA_BACKUPS=(
+	air.com.rosettastone.mobile.CoursePlayer
+	com.andrewshu.android.reddit
+	com.android.providers.contacts
+	com.ceco.marshmallow.gravitybox
+	com.droidhen.fruit
+	com.dotgears.swing
+	com.dotgears.flappybird
+	com.duolingo
+	com.estoty.game2048
+	com.fsck.k9
+	com.handynorth.moneywise_free
+	com.lima.doodlejump
+	com.liutoapps.android.memory
+	com.marz.snapprefs
+	com.molodev.galaxir
+	com.quinny898.xposed.googlekeyboardcustomsmileys
+	com.rovio.angrybirds
+	com.rovio.angrybirdsgo
+	com.RunnerGames.game.YooNinja_Lite
+	com.ryansteckler.nlpunbounce
+	com.sega.sonicdash
+	com.shazam.android
+	com.snapchat.android
+	com.soa.sega.soniccdlite
+	com.socialnmobile.dictapps.notepad.color.note
+	com.Splitwise.SplitwiseMobile
+	com.team242.robozzle
+	org.thoughtcrime.securesms
+	#com.tmobile.vvm.application
+	com.whatsapp
+	de.Maxr1998.xposed.maxlock
+	dev.ukanth.ufirewall
+	net.andchat
+	org.coursera.android
+	org.mozilla.firefox
+	org.sufficientlysecure.keychain
+)
+
+WORKING_FILE_LOCAL=""
+WORKING_FILE_DEVICE=""
+
+function terminate () {
+	echo "Terminating now..." | tee -a "${LOGFILE}" >&2
+	sudo chown -R "${USER}:${USER}" "${BACKUP_DIR}"
+	sudo chgrp trusted_users "${BACKUP_DIR}/*.vcf"
+	# incomplete data transfer? Maybe, in which case, file currently
+	# being transferred might be corrupted. Solve problem by deleting file
+	if [ -n "${WORKING_FILE_LOCAL}" ]; then
+		rm -rf "${WORKING_FILE_LOCAL}"
+	fi
+	if [ -n "${WORKING_FILE_DEVICE}" ]; then
+		android_cmd_as_root "rm -rf \"${WORKING_FILE_DEVICE}\""
+	fi
+	exit 1
+}
+
+function android_cmd () {
+	local cmd="$@"; shift
+
+	echo "Executing command '${cmd}' via adb" >> "${LOGFILE}"
+	sudo adb shell "${cmd}"
+	return_value=$?
+	if [ "${return_value}" != 0 ]; then
+		echo "Return value: ${return_value}" | tee -a "${LOGFILE}" >&2
+		echo "Error communicating with Android. Quitting now."
+		exit 1
+	fi
+}
+
+function android_cmd_as_root () {
+	local cmd="$@"; shift
+
+	echo "Executing command '${cmd}' as root via adb" >> "${LOGFILE}"
+	sudo adb shell '[ $(whoami) == root ] && '"${cmd} || su -c '${cmd}'"
+	return_value=$?
+	if [ "${return_value}" != 0 ]; then
+		echo "Return value: ${return_value}" | tee -a "${LOGFILE}" >&2
+		echo "Error communicating with Android. Quitting now."
+		exit 1
+	fi
+}
+
+function get_file_listing () {
+	local directory=$1; shift
+	local exclude_pattern=$1; shift
+	local out_file=$(mktemp --tmpdir "$(basename ${directory})_andsync.XXXXXX")
+
+	if [ -z "${exclude_pattern}" ]; then
+		exclude_pattern='^$'
+	fi
+	android_cmd "find '${directory}' -type f" \
+		| sort \
+		| grep -v "${exclude_pattern}" \
+		| dos2unix > "${out_file}"
+
+	echo "${out_file}"
+}
+
+function pull_non_local_files () {
+	local android_directory=$1; shift
+	local filelist=$1; shift
+	local local_directory=$(basename "${android_directory}")
+	local local_file=""
+
+	mkdir -p "${local_directory}"
+	#DEBUG
+#	find "${local_directory}" -type f | sort > local_dl_out
+#	mv "${filelist}" android_dl_out
+#	diff android_dl_out local_dl_out > diff
+#	exit 0
+	#END DEBUG
+	find "${local_directory}" -type f \
+		| sort \
+		| sed -e "s#^${local_directory}#${android_directory}#" \
+		| diff --from-file=- "${filelist}" \
+		| grep '>' \
+		| cut -b3- \
+		| while read; do
+			echo -n "Backing up ${REPLY}: "
+			WORKING_FILE="${REPLY}"
+			echo $REPLY
+			local_file=$(echo "${REPLY}" | sed -e "s#${android_directory}#${local_directory}#")
+			sudo adb pull "${REPLY}" "${local_file}"
+			if [ $? != 0 ]; then
+				echo "Error communicating with Android. Quitting now." | tee -a "${LOGFILE}" >&2
+				exit 1
+			fi
+			WORKING_FILE=""
+		done
+}
+
+function backup_sdcard () {
+	for dir in "${SDCARD_BACKUPS[@]}"; do
+		echo "Backing up /sdcard/${dir}" | tee -a "${LOGFILE}" >&2
+		out=$(get_file_listing "/sdcard/${dir}")
+		pull_non_local_files "/sdcard/${dir}" "${out}"
+		rm "${out}"
+	done
+	echo "Backing up /sdcard/.xprivacy" | tee -a "${LOGFILE}" >&2
+	mv xprivacy .xprivacy
+	out=$(get_file_listing "/sdcard/.xprivacy")
+	pull_non_local_files "/sdcard/.xprivacy" "${out}"
+	mv .xprivacy xprivacy
+	rm "${out}"
+	echo "Backing up /sdcard/DCIM" | tee -a "${LOGFILE}" >&2
+	out=$(get_file_listing "/sdcard/DCIM" '/.thumbnails/')
+	pull_non_local_files "/sdcard/DCIM" "${out}"
+	rm "${out}"
+	echo "Backing up /sdcard/Pictures" | tee -a "${LOGFILE}" >&2
+	out=$(get_file_listing "/sdcard/Pictures" '/cache/')
+	pull_non_local_files "/sdcard/Pictures" "${out}"
+	rm "${out}"
+}
+
+function backup_app () {
+	local directory=$1; shift
+
+	if [ -d "${APP_DATA_BACKUP_DIR}/${directory}" ]; then
+		mv "${APP_BACKUP_DIR}/${directory}" "${APP_BACKUP_DIR}/${directory}.bak"
+	fi
+	echo "Copying ${app} data directory to /sdcard/" | tee -a "${LOGFILE}" >&2
+	android_cmd "mv '/sdcard/${app}' '/sdcard/${app}.bak' 2>/dev/null"
+	android_cmd_as_root "cp -R '/data/data/${app}' /sdcard/ 2>/dev/null"
+	sudo adb pull "/sdcard/${directory}" "${APP_BACKUP_DIR}/${directory}"
+	if [ $? == 0 ]; then
+		if [ -d "${APP_DATA_BACKUP_DIR}/${directory}.bak" ]; then
+			rm -r "${APP_BACKUP_DIR}/${directory}.bak"
+		fi
+	else
+		echo "ERROR BACKING UP ${directory}" | tee -a "${LOGFILE}" >&2
+		exit 1
+	fi
+	android_cmd "rm -r '/sdcard/${app}' 2>/dev/null"
+	android_cmd "mv '/sdcard/${app}.bak' '/sdcard/${app}' 2>/dev/null"
+}
+
+function needs_to_be_updated () {
+	local dir=$1; shift
+
+	if [ ! -d "${APP_BACKUP_DIR}/${dir}" ] || \
+		[ ! -f "${APP_BACKUP_DIR}/${dir}/.timestamp" ]; then
+		mkdir -p "${APP_BACKUP_DIR}/${dir}"
+		touch "${APP_BACKUP_DIR}/${dir}/.timestamp"
+		dos2unix "${APP_BACKUP_DIR}/${dir}/.timestamp" 2>/dev/null
+	fi
+	android_cmd_as_root "ls -l /data/data/${dir}/ | cut -b39-54" \
+		| diff --from-file=- "${APP_BACKUP_DIR}/${dir}/.timestamp" > /dev/null \
+		&& echo 0 \
+		|| echo 1
+}
+
+function backup_all_apps () {
+	for app in "${APPDATA_BACKUPS[@]}"; do
+		if [ "$(needs_to_be_updated "${app}")" == 1 ]; then
+			echo "${app} needs to be updated" | tee -a "${LOGFILE}" >&2
+			backup_app "${app}"
+			android_cmd_as_root "ls -l \"/data/data/${app}/\" \
+				| cut -b39-54" > "${APP_BACKUP_DIR}/${app}/.timestamp"
+		else
+			echo "${app} is up to date, skipping" | tee -a "${LOGFILE}" >&2
+		fi
+	done
+}
+
+function remove_useless_files () {
+	cd "${APP_BACKUP_DIR}"
+	find -iname '*flurry*' -delete #-exec rm -r {} +
+	find -iname '*local*storage*' -delete #-exec rm -r {} +
+	find -iname '*analytic*' -delete #-exec rm -r {} +
+	find -iname '*crashlyt*' -delete #-exec rm -r {} +
+	find -iname '*cookie*' -delete #-exec rm -r {} +
+	rm -rf com.andrewshu.android.reddit/cache/
+	rm -rf org.mozilla.firefox/cache/
+	rm -rf com.snapchat.android/cache/
+	rm -rf com.shazam.android/cache/
+	cd - >/dev/null
+}
+
+function restore_data () {
+	for dir in "${SDCARD_BACKUP[@]}"; do
+		android_cmd "rm -rf /sdcard/${dir}"
+		sudo adb push "${BACKUP_DIR}/${app}" "/sdcard/${app}"
+	done
+	for app in "${APPDATA_BACKUPS[@]}"; do
+		echo "Restoring data from backup for ${app}" | tee -a "${LOGFILE}" >&2
+		android_cmd "mv '/sdcard/${app}' '/sdcard/${app}.bak' 2>/dev/null"
+		sudo adb push "${APP_BACKUP_DIR}/${app}" "/sdcard/${app}"
+		local user_id=$(android_cmd "grep '${app}' /data/system/package.list | cut -d' ' -f2")
+		android_cmd_as_root "cp -R \"/sdcard/${app}/*\" '/data/data/${app}' 2>/dev/null"
+		android_cmd_as_root "find '/data/data/${app}' -exec chown ${user_id}:${user_id} {} \;"
+		android_cmd "rm -rf '/sdcard/${app}'"
+		android_cmd "mv '/sdcard/${app}.bak' '/sdcard/${app}' 2>/dev/null"
+	done
+	if [ -f "${APP_BACKUP_DIR}/*.vcf" ]; then
+		for vcard in "${APP_BACKUP_DIR}/*.vcf"; do
+			sudo adb push "${vcard}" /sdcard/
+		done
+	fi
+}
+
+#declare -A xprivacy=([pre]='mv xprivacy .xprivacy' [post]='mv .xprivacy xprivacy')
+#declare -A DCIM=([exclude]='/.thumbnails/')
+#declare -A Pictures=([exclude]='/cache/')
+#declare -A META_OPERATIONS=([xprivacy]="${xprivacy[@]}" [DCIM]="${DCIM[@]}" [Pictures]="${Pictures[@]}")
+
+trap terminate SIGINT
+
+function main() {
+	readonly LOGFILE=$(mktemp --tmpdir $(basename $0)-log.XXXXXX)
+	local APPDATA_BACKUP=false
+	local RESTORE_DATA=false
+	local LIST_PACKAGES=false
+
+	while getopts "ahpr" opt; do
+		case ${opt} in
+			a)
+				APPDATA_BACKUP=true
+				;;
+			h)	# help message
+				cat << EOF
+Usage: $(basename $0) [OPTION]...
+Options: -a: backup app data
+	 -h: show this help dialog
+	 -p: save list of installed packages to ${PACKAGE_LIST_FILE}
+	 -r: restore data
+EOF
+				exit 0
+				;;
+			p)
+				LIST_PACKAGES=true
+				;;
+			r)
+				RESTORE_DATA=true
+				;;
+			?)
+				echo "Unknown option, exiting now" | tee -a "${LOGFILE}" >&2
+				exit 1
+				;;
+		esac
+	done
+	readonly APPDATA_BACKUP
+	readonly RESTORE_DATA
+	readonly LIST_PACKAGES
+
+	if [ $(sudo adb devices|wc -l) == 2 ]; then
+		echo "Error: no devices available" | tee -a "${LOGFILE}" >&2
+		exit 1
+	fi
+	cd "${BACKUP_DIR}"
+	if "${RESTORE_DATA}"; then
+		read -p "This procedure will delete any existing data for all apps being restored. Are you sure you want to continue [Y/n] ? " >&2
+		if [ "${REPLY}" != 'y' ] && [ "${REPLY}" != 'Y' ]; then
+			echo "Aborting restore operation" | tee -a "${LOGFILE}" >&2
+			exit
+		fi
+		restore_data
+	else
+		echo "Backing up sdcard data..." | tee -a "${LOGFILE}" >&2
+		backup_sdcard
+		if "${LIST_PACKAGES}"; then
+			echo "Obtaining package list..." | tee -a "${LOGFILE}" >&2
+			android_cmd_as_root 'cat /data/system/packages.list' | sed -e 's/^package://' > "${PACKAGE_LIST_FILE}"
+		fi
+		if "${APPDATA_BACKUP}"; then
+			echo "Backing up app data..." | tee -a "${LOGFILE}" >&2
+			mkdir -p "${APP_BACKUP_DIR}"
+			cd "${APP_BACKUP_DIR}"
+			backup_all_apps
+			sudo chown -R "${USER}:${USER}" "${APP_BACKUP_DIR}"
+			remove_useless_files
+		fi
+		sudo chown -R "${USER}:${USER}" "${BACKUP_DIR}"
+		sudo chgrp trusted_users "${BACKUP_DIR}"
+		sudo chgrp trusted_users "${BACKUP_DIR}"/*.vcf
+	fi
+	echo "Logfile: ${LOGFILE}"
+	echo "Done!" | tee -a "${LOGFILE}" >&2
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

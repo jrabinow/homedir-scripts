@@ -1,0 +1,41 @@
+#!/bin/bash
+
+function main () {
+	local SHOW_RECOMMENDS=false
+	local pkgname
+
+	while getopts "hr" opt; do
+		case ${opt} in
+			h)	# help message
+				cat << EOF
+Usage: $(basename $0) [OPTION]...
+Options: -h: show this help dialog
+	 -r: show recommends
+EOF
+				exit 0
+				;;
+			r)
+				SHOW_RECOMMENDS=true
+				;;
+			?)
+				echo "Unknown option, exiting now" >&2
+				exit 1
+				;;
+		esac
+	done
+	readonly SHOW_RECOMMENDS
+
+	pkgname=${!OPTIND}; shift
+	if [ -z "${pkgname}" ]; then
+		echo "Usage: $(basename $0) PACKAGE-NAME"
+		exit 1
+	fi
+	aptitude -v why "${pkgname}"|grep -E "Depends\s${pkgname}"|sed -e 's/ \+/ /g'|sort -u
+	if "${SHOW_RECOMMENDS}"; then
+		aptitude -v why "${pkgname}"|grep -E "Recommends\s${pkgname}"|sed -e 's/ \+/ /g'|sort -u
+	fi
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

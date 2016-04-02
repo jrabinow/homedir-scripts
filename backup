@@ -1,0 +1,137 @@
+#!/bin/bash
+
+function usage () {
+	local progname=$(basename $0)
+	cat << EOF
+Usage: $progname [OPTION]...
+Options:  -c		If base directory doesn't exist, create it
+	  -d=ARG	redefine base directory for backup
+	  -h		Print this help message
+Current env:
+DEFAULT_OPTS=$DEFAULT_OPTS
+BASEDEST=$BASEDEST
+EOF
+}
+
+function main () {
+	##### INITIALIZATION #####
+	#local BASEDEST=/media/${USER}/a669e2c0-9ab5-4679-b34f-7cb66201dbb3
+	local BASEDEST=/mnt
+	local DEFAULT_OPTS="-aimHAXE --human-readable --progress --no-D"
+	local create=false
+	local LOGFILE=$(mktemp --tmpdir backup-log.XXX)
+
+	while getopts "d:ch" opt; do
+		case "${opt}" in
+			d)
+				BASEDEST="${OPTARG}"
+				;;
+			c)	
+				create=true
+				;;
+			h|\?)
+				usage
+				if [ ${opt} == "h" ]; then
+					exit 0
+				else
+					exit 1
+				fi
+				;;
+		esac
+	done
+
+	if [ ! -d "${BASEDEST}" ]; then
+		if $create ; then
+			mkdir "${BASEDEST}"
+		else
+			echo -e "Error: destination does not exist.\nQuitting now..."
+			exit
+		fi
+	fi
+
+	if [ ! -d "${BASEDEST}/Deleted" ]; then
+		mkdir "${BASEDEST}/Deleted"
+	fi
+
+	##### WINDOWS PARTITION BACKUP #####
+	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=desktop.ini --backup --backup-dir=${BASEDEST}/Deleted"
+	local SRC="/media/Windows7/Users/Julian"
+	local DEST="${BASEDEST}/Backup/Windows7"
+	#backup "${OPTS}" "${SRC}" "${DEST}" Desktop Documents Favorites "Saved Games"
+
+
+	##### LINUX PARTITION BACKUP #####
+	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=.dropbox --backup --backup-dir=${BASEDEST}/Deleted"
+	local SRC="$HOME"
+	local DEST="$BASEDEST/Backup/GNU - Linux"
+	backup "${OPTS}" "${SRC}" "${DEST}" bin Documents Dropbox Videos tmpcode
+
+	##### LINUX APACHE SERVER DIRECTORY #####
+	backup "${OPTS}" "/var" "${DEST}" www
+
+	##### LINUX "HIDDEN" FILES: DELETE OLD FILES #####
+	local OPTS="$DEFAULT_OPTS --delete"
+	local DEST="${DEST}/Hidden Files"
+	backup_hidden "${OPTS}" "${SRC}" "${DEST}" bashrc blobby gitconfig gnupg mozilla minecraft pentadactylrc prboom prboom-plus profile ssh supertux Skype tiemu tmux.conf uqm vimrc vim xchat2 xonotic xscreensaver
+
+	##### LINUX "HIDDEN" FILES: KEEP OLD FILES #####
+	#local OPTS="$DEFAULT_OPTS"
+	#backup_hidden "${OPTS}" "${SRC}" "${DEST}" icedove
+
+	##### MEDIA BACKUP #####
+	local DEST="${BASEDEST}/Backup/Media"
+	backup "${OPTS}" "${SRC}" "${DEST}" Pictures Music
+
+	if [ -d "$BASEDEST/Deleted" ]; then
+		echo "Files were deleted."
+	fi
+	echo "Complete log is available in file $LOGFILE"
+}
+
+function backup () {
+	local OPTS=$1; shift
+	local SRC=$1; shift
+	local DEST=$1; shift
+
+	if [ ! -d "${DEST}" ]; then
+		mkdir -p "${DEST}"
+	fi
+
+	while [ $# -gt 0 ]
+	do
+		dir=$1; shift
+		echo "Backing up ${SRC}/${dir} to ${DEST}" | tee -a $LOGFILE
+		rsync $OPTS "${SRC}/${dir}" "${DEST}" | tee -a $LOGFILE
+		if [ $? != 0 ]; then
+			echo "Error backing up ${SRC}/${dir}"
+			exit 1
+		fi
+		echo "" | tee -a $LOGFILE
+	done
+}
+
+function backup_hidden () {
+	local OPTS=$1; shift
+	local SRC=$1; shift
+	local DEST=$1; shift
+
+	while [ $# -gt 0 ]
+	do
+		dir=$1; shift
+		# if file doesn't exist, can't be renamed -> suppress error
+		mv "$DEST/${dir}" "$DEST/.${dir}" 2>/dev/null
+		echo "Backing up ${SRC}/.${dir} to ${DEST}" | tee -a $LOGFILE
+		rsync $OPTS "${SRC}/.${dir}" "${DEST}" | tee -a $LOGFILE
+		if [ $? != 0 ]; then
+			echo "Error backing up ${SRC}/.${dir}"
+			exit 1
+		fi
+		mv "$DEST/.${dir}" "$DEST/${dir}"
+		echo "" | tee -a $LOGFILE
+	done
+}
+
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

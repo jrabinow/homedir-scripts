@@ -1,0 +1,28 @@
+#!/bin/bash
+rm -rf $HOME/.adobe $HOME/.android $HOME/.ansible $HOME/.appletviewer $HOME/.aptitude $HOME/.aria2 $HOME/.assaultcube_v1.104 $HOME/.audacity-data $HOME/.cgobanrc $HOME/.dbus $HOME/.ddd $HOME/.dreamchess $HOME/.dvdcss $HOME/.emacs.d $HOME/.fontconfig $HOME/.gconfd $HOME/.gdb_history $HOME/.gegl-0.0 $HOME/.getdown $HOME/.gimp-2.8 $HOME/.git-credential-cache $HOME/.gksu.lock $HOME/.gnash $HOME/.gnome $HOME/.gnome2 $HOME/.gnome2_private $HOME/.golly $HOME/.googleearth $HOME/.gstreamer-0.10 $HOME/.gvfs $HOME/.hedgewars $HOME/.icedtea $HOME/.icons $HOME/.lftp $HOME/.links2 $HOME/.java $HOME/.macromedia $HOME/.matplotlib $HOME/.mission-control $HOME/.mplayer $HOME/.muttator $HOME/.nautilus $HOME/.nedit $HOME/.octave_hist $HOME/.pdfedit $HOME/.pki $HOME/.pulse $HOME/.python_history $HOME/.qt $HOME/.scala_history $HOME/.swt $HOME/.texmf-var $HOME/.themes $HOME/.thumbnails $HOME/.pip $HOME/.update-notifier $HOME/.vidalia $HOME/.wireshark
+rm -f $HOME/.aspell* $HOME/.esd_auth $HOME/.lesshst $HOME/.pulse-cookie $HOME/.gtk-bookmarks $HOME/.gnuplot_history $HOME/.ICEauthority $HOME/.local/share/recently-used.xbel $HOME/.ophcrackrc $HOME/.recently-used $HOME/.sudo_as_admin_successful $HOME/.tilp $HOME/.viminfo $HOME/.wget-hsts $HOME/.xfce4-session.verbose-log* $HOME/.xsession $HOME/.xsession-errors* $HOME/.ypp_42
+rm -rf $HOME/.cache/banshee-1 $HOME/.cache/chromium $HOME/.cache/dconf $HOME/.cache/docky $HOME/.cache/fontconfig $HOME/.cache/gegl-0.2 $HOME/.cache/gstreamer-1.0 $HOME/.cache/gnome-screenshot $HOME/.cache/gnome-system-monitor.* $HOME/.cache/gvfs-burn $HOME/.cache/software-center $HOME/.cache/thumbnails
+rm -f $HOME/.cache/motd.legal-displayed $HOME/.cache/event-sound-cache.tdb*
+cd $HOME/.mozilla 2>/dev/null
+rmdir extensions 2>/dev/null
+cd firefox 2>/dev/null
+for profile in $(ls -d *.default 2>/dev/null)
+do
+	cd $profile
+	rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
+	rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
+	cd ..
+done
+rm -f /tmp/gnash-cookies.* $(locate recently-used.xbel)
+cd $HOME/.config
+rm -rf chromium/Default/Local\ Storage evince google-googletalkplugin gtk-2.0 guvcview2 htop libreoffice libvirt octave Skype sqlitebrowser Thunar viewnior wireshark xarchiver
+rm -f QtProject.conf Trolltech.conf user-dirs.dirs user-dirs.locale weston.ini
+locate '~' | grep '~$' | xargs rm 2>/dev/null
+if [ $# -eq 1 ] && [ $1 == "-b" ]; then
+	if [ ! -z $(which bleachbit) ]; then
+		bleachbit -c adobe_reader.cache adobe_reader.mru adobe_reader.tmp amsn.cache amule.logs amule.tmp apt.autoclean apt.autoremove audacious.cache audacious.log audacious.mru beagle.cache beagle.index beagle.logs chromium.cache chromium.cookies chromium.dom chromium.form_history chromium.vacuum d4x.history deepscan.ds_store deepscan.thumbs_db deepscan.tmp easytag.logs elinks.history emesene.cache emesene.logs epiphany.cache epiphany.cookies epiphany.passwords epiphany.places evolution.cache exaile.cache exaile.downloaded_podcasts exaile.log filezilla.mru firefox.cache firefox.crash_reports firefox.dom firefox.forms firefox.vacuum flash.cache flash.cookies gedit.recent_documents gftp.cache gftp.logs gimp.tmp gl-117.debug_logs gnome.run gnome.search_history google_chrome.cache google_chrome.cookies google_chrome.dom google_chrome.form_history google_chrome.history google_chrome.passwords google_chrome.search_engines google_chrome.session google_chrome.vacuum google_earth.temporary_files google_toolbar.search_history gpodder.cache gpodder.vacuum gwenview.recent_documents hippo_opensim_viewer.cache hippo_opensim_viewer.logs java.cache kde.cache kde.recent_documents kde.tmp konqueror.cookies konqueror.current_session konqueror.url_history libreoffice.cache libreoffice.history liferea.cache liferea.cookies liferea.vacuum links2.history midnightcommander.history miro.cache miro.logs nautilus.history nexuiz.cache octave.history openofficeorg.cache openofficeorg.recent_documents opera.cache opera.cookies opera.current_session opera.dom opera.download_history opera.search_history opera.url_history pidgin.cache pidgin.logs realplayer.cookies realplayer.history realplayer.logs recoll.index rhythmbox.cache screenlets.logs seamonkey.cache seamonkey.chat_logs seamonkey.cookies seamonkey.download_history seamonkey.history secondlife_viewer.Cache secondlife_viewer.Logs sqlite3.history system.cache system.clipboard system.custom system.desktop_entry system.localizations system.recent_documents system.rotated_logs system.tmp system.trash thumbnails.cache thunderbird.cache thunderbird.cookies thunderbird.vacuum transmission.cache tremulous.cache vim.history vlc.mru vuze.backup_files vuze.cache vuze.logs vuze.tmp warzone2100.logs wine.tmp winetricks.temporary_files x11.debug_logs xine.cache yum.clean_all yum.vacuum
+	else
+		echo "bleachbit not found in $PATH" >&2
+	fi
+fi
+exit 0

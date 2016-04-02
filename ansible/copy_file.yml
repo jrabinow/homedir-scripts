@@ -1,0 +1,7 @@
+---
+- name: copy single file
+  hosts: localhost
+  connection: local
+  tasks:
+   - name: copy stuff
+     copy: remote_src="{{ ansible_env.REMOTE_SRC }}" src="{{ ansible_env.FILE }}" dest="{{ ansible_env.DEST }}" owner=ubuntu group=ubuntu mode=600

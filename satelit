@@ -1,0 +1,24 @@
+#!/bin/bash
+
+function main()
+{
+	if [ $# == 0 ]; then
+		echo "Usage: $(basename $0) COUNTRY CODE"
+		exit
+	fi
+	case $1 in
+		"afce"|"afng"|"alps"|"de"|"eu"|"fr"|"gb"|"gr"|"it"|"nl"|"pl"|"scan"|"sp")
+			wget -qO /tmp/sat.gif "http://www.sat24.com/image.ashx?country=$1"
+			xdg-open /tmp/sat.gif 2>/dev/null
+			sleep 1
+			rm /tmp/sat.gif
+			;;
+		*)
+			echo "Invalid region code entered."
+			;;
+	esac
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi
