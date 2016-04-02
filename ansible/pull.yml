@@ -1,0 +1,8 @@
+---
+- name: pull data from remote server
+  hosts: ec2
+  tasks:
+    - stat: path="${{ dest }}"
+      register: st
+    - fetch: src="{{ src }}" dest="{{ dest }}" fail_on_missing=yes
+      when: not st.stat.exists

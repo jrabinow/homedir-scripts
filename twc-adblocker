@@ -1,0 +1,22 @@
+#!/bin/bash
+
+function process_file () {
+	file="$1"; shift
+	name=$(basename "${file}" .pdf)
+	pdfseparate -f 3 -l 4 "${file}" "${name}-%d.pdf"
+	mv "${file}" "${file}.bak"
+	pdfunite "${name}-3.pdf" "${name}-4.pdf" "${file}"
+	rm "${name}-3.pdf" "${name}-4.pdf"
+}
+
+function main () {
+	while [ $# -ne 0 ]; do
+		file="$1"; shift
+		echo "Processing file ${file}"
+		process_file "${file}"
+	done
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi
