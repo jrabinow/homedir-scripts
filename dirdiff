@@ -1,30 +1,30 @@
 #!/usr/bin/env python
 
-import os, sys, hashlib
+import os, sys, hashlib, re
+from collections import defaultdict
 BUFSIZ = 65536
 
 class File:
-    def __init__(self, path, hashval, dirname):
+    def __init__(self, path, hashval, rootdir):
         self.name = os.path.basename(path)
         self.path = path
         self.hashval = hashval
-        self.dirname = dirname
-    def __eq__(f1, f2):
-        return f1.name == f2.name
-    def __hash__(self):
-        return hash(self.name) #int(self.hashval, 16)
+        self.rootdir = rootdir
+
 
 def apply_to_dir(dirpath, func):
     __apply_to_dir_internal = lambda x: map(func,
         [ os.path.join(x[0], filename) for filename in x[2]])
     map(__apply_to_dir_internal, os.walk(dirpath))
 
+
 def main():
-    if len(sys.argv) != 3:
-        print "Usage: %s dir1 dir2" % sys.argv[0]
+    if len(sys.argv) < 3:
+        print "Usage: %s dir1 dir2 [dir3...]" % sys.argv[0]
         exit(1)
-    files = set()
+    files = defaultdict(list)
     dirnum = 1
+
     def hash_file(filepath):
         hasher = hashlib.sha1()
         try:
@@ -35,27 +35,38 @@ def main():
                     buf = f.read(BUFSIZ)
         except:
             hasher.update('')
-        files.add(File(filepath, hasher.hexdigest(), sys.argv[dirnum]))
+        return hasher.hexdigest()
 
-    dir1, dir2 = sys.argv[1], sys.argv[2]
-    apply_to_dir(dir1, hash_file)
-    files1 = set(files)
-    files.clear()
-    dirnum += 1
-    apply_to_dir(dir2, hash_file)
-    files2 = files
+    def add_to_dict(filepath):
+        rootdir = sys.argv[dirnum]
+        path = re.sub("^" + sys.argv[dirnum], "", filepath)
+        filename = os.path.basename(path)
+        files[path].append(
+                File(path, hash_file(filepath), rootdir)
+        )
 
-    missing_files = files1.symmetric_difference(files2)
-    File.__hash__ = lambda self: hash((self.name, self.hashval))
-    differing_files = files1.intersection(files2) - missing_files
+    for i in range(1, len(sys.argv)):
+        apply_to_dir(sys.argv[i], add_to_dict)
+        dirnum += 1
 
-    missing_files = sorted(missing_files, key=lambda x: x.path)
-    differing_files = sorted(differing_files, key=lambda x: x.path)
+    missing_files = dict()
+    differing_files = dict()
+    for k, v in files.items():
+        if len(v) == 1:
+            missing_files[k] = v[0]
+        elif len(v) > 1:
+            hashval = v[0].hashval
+            if not all(map(lambda x: x.hashval == hashval, v)):
+                differing_files[k] = v[0]
+
+    missing_files = sorted(missing_files.values(), key=lambda x: x.path)
+    differing_files = sorted(differing_files.values(), key=lambda x: x.path)
 
     for i in missing_files:
-        print "%s:\tin %s" % (i.name, os.path.dirname(i.path))
+        print "%s:\tadditional file %s" % (i.name, i.rootdir + i.path)
     for i in differing_files:
-        print "%s:\tdiffer" % i.name
+        print "%s%s:\tdiffer" % (i.rootdir, i.path)
+
 
 if __name__ == '__main__':
     main()

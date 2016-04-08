@@ -134,13 +134,13 @@ function tor-browser()
 {
 	require_running
 	readonly TOR_ARCHIVE="tor-browser-linux64-${TOR_BROWSER_VERSION}_en-US.tar.xz"
-	#install libfontconfig1
-	#install libxrender1
-	#install libasound2
-	#install libgtk2.0-0
-	#install libxt6
+	install libfontconfig1
+	install libxrender1
+	install libasound2
+	install libgtk2.0-0
+	install libxt6
 	if [ -f ~/bin/Browser/start-tor-browser ]; then
-		tar -C /tmp -Jcf "${TOR_ARCHIVE}" ~/bin/Browser
+		tar -Jcf "/tmp/${TOR_ARCHIVE}" ~/bin/Browser
 		exit 0
 		push "/tmp/${TOR_ARCHIVE}"
 		rm "/tmp/${TOR_ARCHIVE}"
