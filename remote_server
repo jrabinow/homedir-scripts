@@ -4,14 +4,15 @@ readonly ANSIBLE_DIR="${HOME}/bin/ansible"
 readonly KEYFILE="${HOME}/.ssh/jrabinow.pem"
 readonly DOWNLOAD_DIR="${HOME}/Downloads"
 
-readonly REMOTE_USER=ubuntu
 readonly TOR_BROWSER_VERSION=5.5.4
+REMOTE_USER=ubuntu
 
 function usage()
 {
 	cat << EOF
 Usage: $(basename $0) [OPTION]... COMMAND
 Options: -h: print this help message
+	 -u ARG: login as user ARG
 Commands: start|launch: launch remote server
 	  stop|terminate: shutdown remote server
 	  restart|reboot: restart new instance of server
@@ -22,8 +23,8 @@ Commands: start|launch: launch remote server
 	  shell: ssh to remote server
 	  install ARG: install ARG on remote server
 	  run ARG: launch X program on remote server
-  	  download ARG: downloads ARG on remote server
-	  tor: launch tor browser on remot server
+	  download ARG: downloads ARG on remote server
+	  tor: launch tor browser on remote server
 EOF
 }
 
@@ -99,7 +100,7 @@ function remote_shell()
 	else
 		push ~/.tmux.conf
 		push ~/.vimrc
-		ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -Y -i "${KEYFILE}" "${REMOTE_USER}@${ip_addr}" -t tmux
+		ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -Y -i "${KEYFILE}" "${REMOTE_USER}@${ip_addr}" -t 'tmux attach || tmux'
 	fi
 }
 
@@ -139,16 +140,13 @@ function tor-browser()
 	install libasound2
 	install libgtk2.0-0
 	install libxt6
-	if [ -f ~/bin/Browser/start-tor-browser ]; then
-		tar -Jcf "/tmp/${TOR_ARCHIVE}" ~/bin/Browser
-		exit 0
-		push "/tmp/${TOR_ARCHIVE}"
-		rm "/tmp/${TOR_ARCHIVE}"
-	else
-		echo "foo"
-		exit 0
-		download "https://www.torproject.org/dist/torbrowser/${TOR_BROWSER_VERSION}/${TOR_ARCHIVE}"
-	fi
+#	if [ -f ~/bin/Browser/start-tor-browser ]; then
+#		tar -Jcf "/tmp/${TOR_ARCHIVE}" ~/bin/Browser
+#		push "/tmp/${TOR_ARCHIVE}"
+#		rm "/tmp/${TOR_ARCHIVE}"
+#	else
+	download "https://www.torproject.org/dist/torbrowser/${TOR_BROWSER_VERSION}/${TOR_ARCHIVE}"
+#	fi
 	remote_shell tar -Jxf "${TOR_ARCHIVE}"
 	remote_shell ./tor-browser_en-US/Browser/start-tor-browser
 }
@@ -163,11 +161,14 @@ function main()
 	#export AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 	source ./credentials
 
-	while getopts "h" opt; do
+	while getopts "u:h" opt; do
 		case "${opt}" in
 			h)
 				usage
 				exit 0
+				;;
+			u)
+				REMOTE_USER="${OPTARG}"
 				;;
 			?)
 				echo "Unknown option, exiting now" >&2
@@ -178,10 +179,14 @@ function main()
 		esac
 	done
 
+	readonly REMOTE_USER
+	shift $((OPTIND-1))
+
 	if [ $# -lt 1 ]; then
 		usage
 		exit 0
 	fi
+
 	cmd="${1}"; shift
 	case "${cmd}" in
 		"start"|"launch")
