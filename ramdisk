@@ -1,0 +1,23 @@
+#!/bin/bash
+
+function main ()
+{
+	dirname=$(mktemp -d);
+	sudo mount -t tmpfs tmpfs "${dirname}";
+	cd "${dirname}";
+	awk "/^function/,/^}/" ~/.bashrc > "${dirname}/.bashrc";
+	awk "/^alias/,/'\''$/" ~/.bashrc >> "${dirname}/.bashrc";
+	awk "/dircolors/,/fi$/" ~/.bashrc >> "${dirname}/.bashrc";
+	cp -R ~/.vim ~/.vimrc ~/.tmux.conf "${dirname}";
+	ln -s ~/bin "${dirname}";
+	HOME="${dirname}" bash;
+	find -P "${dirname}" -type f -print0 | xargs -0 shred -zu;
+	cd -;
+	sudo rm -rf "${dirname}/*";
+	sudo umount "${dirname}";
+	rmdir "${dirname}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+	main "$@"
+fi

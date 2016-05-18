@@ -61,7 +61,7 @@ function main () {
 
 
 	##### LINUX PARTITION BACKUP #####
-	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=.dropbox --backup --backup-dir=${BASEDEST}/Deleted"
+	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=.dropbox --exclude=.dropbox.cache --exclude=.git --backup --backup-dir=${BASEDEST}/Deleted"
 	local SRC="$HOME"
 	local DEST="$BASEDEST/Backup/GNU - Linux"
 	backup "${OPTS}" "${SRC}" "${DEST}" bin Documents Dropbox Videos tmpcode
