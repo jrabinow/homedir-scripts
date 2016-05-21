@@ -1,4 +1,18 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
+
+"""Prints differing files in 2 or more directories
+Given the following directory layout
+
+foo1/       foo2/
+    f1          f1
+    f2          f2
+    f3
+
+with f1 having different contents in foo1 and foo2,
+f1 will be detected as differing, and f3 will be detected
+as an additional file in foo1
+The operation is recursive across directories in foo1 and foo2
+"""
 
 import os, sys, hashlib, re
 from collections import defaultdict
@@ -11,16 +25,15 @@ class File:
         self.hashval = hashval
         self.rootdir = rootdir
 
-
 def apply_to_dir(dirpath, func):
-    __apply_to_dir_internal = lambda x: map(func,
-        [ os.path.join(x[0], filename) for filename in x[2]])
-    map(__apply_to_dir_internal, os.walk(dirpath))
+    __apply_to_dir_internal = lambda x: list(map(func,
+        [ os.path.join(x[0], filename) for filename in x[2]]))
+    list(map(__apply_to_dir_internal, os.walk(dirpath)))
 
 
 def main():
     if len(sys.argv) < 3:
-        print "Usage: %s dir1 dir2 [dir3...]" % sys.argv[0]
+        print("Usage: %s dir1 dir2 [dir3...]" % sys.argv[0])
         exit(1)
     files = defaultdict(list)
     dirnum = 1
@@ -34,7 +47,7 @@ def main():
                     hasher.update(buf)
                     buf = f.read(BUFSIZ)
         except:
-            hasher.update('')
+            hasher.update(b'')
         return hasher.hexdigest()
 
     def add_to_dict(filepath):
@@ -45,9 +58,19 @@ def main():
                 File(path, hash_file(filepath), rootdir)
         )
 
+    valid_dirs = 0
     for i in range(1, len(sys.argv)):
-        apply_to_dir(sys.argv[i], add_to_dict)
+        sys.argv[i] = sys.argv[i].strip('/') + '/'
+        if os.path.exists(sys.argv[i]):
+            apply_to_dir(sys.argv[i], add_to_dict)
+            valid_dirs += 1
+        else:
+            print("%s does not exist on filesystem" % sys.argv[i], file=sys.stderr)
         dirnum += 1
+
+    if valid_dirs < 2:
+        print("Too many invalid directories", file=sys.stderr)
+        exit(1)
 
     missing_files = dict()
     differing_files = dict()
@@ -59,13 +82,21 @@ def main():
             if not all(map(lambda x: x.hashval == hashval, v)):
                 differing_files[k] = v[0]
 
-    missing_files = sorted(missing_files.values(), key=lambda x: x.path)
-    differing_files = sorted(differing_files.values(), key=lambda x: x.path)
+    missing_files = sorted(missing_files.values(), key=lambda x: x.rootdir + x.path)
+    differing_files = sorted(differing_files.values(), key=lambda x: x.rootdir + x.path)
 
-    for i in missing_files:
-        print "%s:\tadditional file %s" % (i.name, i.rootdir + i.path)
-    for i in differing_files:
-        print "%s%s:\tdiffer" % (i.rootdir, i.path)
+    # max throws ValueError if given an empty list
+    missing_files.append(File('', '', ''))
+    differing_files.append(File('', '', ''))
+
+    maxlen = max(max(map(lambda x: len(x.path), missing_files)),
+                 max(map(lambda x: len(x.path), differing_files)))
+
+    for i in missing_files[:-1]:
+        print("{0}:{1}     additional file {2}{3}".format((i.name),
+                    ' ' * (maxlen - len(i.name)), i.rootdir, i.path))
+    for i in differing_files[:-1]:
+        print('{0}:{1}     differ'.format(i.path, ' ' * (maxlen - len(i.path))))
 
 
 if __name__ == '__main__':
