@@ -89,9 +89,11 @@ NOTES:
 import os, sys, re, time, urllib2, dbus
 
 org_mpris_re = re.compile('^org\.mpris\.((MediaPlayer2\.)?([^.]+))$')
+noncompat_players = re.compile('spotify')
 
 def possible_names():
-    return [ name for name in bus.list_names() if org_mpris_re.match(name) ]
+    return [ name for name in bus.list_names() if org_mpris_re.match(name)
+            and not noncompat_players.search(name) ]
 
 # returns first matching player
 def get_player():
@@ -568,7 +570,10 @@ if __name__ == '__main__':
         except YouDidItWrong, e:
             print >>sys.stderr, e
             raise SystemExit(1)
-        except KeyboardInterrupt:
+        except dbus.exceptions.DBusException, e:
+            print >>sys.stderr, e
             raise SystemExit(2)
+        except KeyboardInterrupt:
+            raise SystemExit(3)
 
 

@@ -5,10 +5,10 @@ function main ()
 	dirname=$(mktemp -d);
 	sudo mount -t tmpfs tmpfs "${dirname}";
 	cd "${dirname}";
-	awk "/^function/,/^}/" ~/.bashrc > "${dirname}/.bashrc";
-	awk "/^alias/,/'\''$/" ~/.bashrc >> "${dirname}/.bashrc";
-	awk "/dircolors/,/fi$/" ~/.bashrc >> "${dirname}/.bashrc";
-	cp -R ~/.vim ~/.vimrc ~/.tmux.conf "${dirname}";
+	#awk "/^function/,/^}/" ~/.bashrc > "${dirname}/.bashrc";
+	#awk "/^alias/,/'\''$/" ~/.bashrc >> "${dirname}/.bashrc";
+	#awk "/dircolors/,/fi$/" ~/.bashrc >> "${dirname}/.bashrc";
+	cp -R ~/.bashrc ~/.vim ~/.vimrc ~/.tmux.conf "${dirname}";
 	ln -s ~/bin "${dirname}";
 	HOME="${dirname}" bash;
 	find -P "${dirname}" -type f -print0 | xargs -0 shred -zu;
