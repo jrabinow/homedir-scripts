@@ -72,7 +72,7 @@ function main () {
 	##### LINUX "HIDDEN" FILES: DELETE OLD FILES #####
 	local OPTS="$DEFAULT_OPTS --delete"
 	local DEST="${DEST}/Hidden Files"
-	backup_hidden "${OPTS}" "${SRC}" "${DEST}" bashrc blobby gitconfig gnupg mozilla minecraft pentadactylrc prboom prboom-plus profile ssh Skype tiemu tmux.conf vimrc vim xchat2 xonotic xscreensaver
+	backup_hidden "${OPTS}" "${SRC}" "${DEST}" bashrc blobby electrum gitconfig gnupg mozilla minecraft pentadactylrc prboom prboom-plus profile ssh Skype tiemu tmux.conf vimrc vim xchat2 xonotic xscreensaver
 
 	##### LINUX "HIDDEN" FILES: KEEP OLD FILES #####
 	#local OPTS="$DEFAULT_OPTS"

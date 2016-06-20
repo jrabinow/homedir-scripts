@@ -4,5 +4,5 @@
   tasks:
     - stat: path="${{ dest }}"
       register: st
-    - fetch: src="{{ src }}" dest="{{ dest }}" fail_on_missing=yes
+    - fetch: src="{{ src }}" dest="{{ dest }}" fail_on_missing=yes flat=yes
       when: not st.stat.exists
