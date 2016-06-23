@@ -13,13 +13,85 @@ BASEDEST=$BASEDEST
 EOF
 }
 
+readonly windows_dirs=(
+	Desktop
+	Documents
+	Favorites
+	"Saved Games"
+)
+
+readonly linux_dirs=(
+	bin
+	Desktop
+	Documents
+	Dropbox
+	Mail
+	mbox
+	Videos
+	tmpcode
+)
+
+readonly linux_hidden_dirs=(
+	AndroidStudio2.0/config
+	bashrc
+	blobby
+	electrum
+	endgame
+	gconf
+	gitconfig
+	gnupg
+	mozilla
+	minecraft
+	muttrc
+	pentadactyl
+	pentadactylrc
+	prboom
+	prboom-plus
+	profile
+	quodlibet
+	Skype
+	ssh
+	teeworlds
+	tiemu
+	tmux.conf
+	vim
+	vimrc
+	xchat2
+	xonotic
+	xscreensaver
+)
+
+readonly media_dirs=(
+	Pictures
+	Music
+)
+
+readonly config_dirs=(
+	autostart
+	bleachbit
+	chromium
+	dconf
+	deluge
+	git-prompt.sh
+	google-musicmanager
+	mimeapps.list
+	spotify
+	touchegg
+	xfce4
+	XfceThemeManager
+)
+
+readonly localshare_dirs=(
+	applications
+	docky
+)
+
 function main () {
 	##### INITIALIZATION #####
 	#local BASEDEST=/media/${USER}/a669e2c0-9ab5-4679-b34f-7cb66201dbb3
 	local BASEDEST=/mnt
 	local DEFAULT_OPTS="-aimHAXE --human-readable --progress --no-D"
 	local create=false
-	local LOGFILE=$(mktemp --tmpdir backup-log.XXX)
 
 	while getopts "d:ch" opt; do
 		case "${opt}" in
@@ -52,35 +124,47 @@ function main () {
 	if [ ! -d "${BASEDEST}/Deleted" ]; then
 		mkdir "${BASEDEST}/Deleted"
 	fi
+	local LOGFILE=$(mktemp --tmpdir backup-log.XXX)
 
 	##### WINDOWS PARTITION BACKUP #####
-	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=desktop.ini --backup --backup-dir=${BASEDEST}/Deleted"
-	local SRC="/media/Windows7/Users/Julian"
-	local DEST="${BASEDEST}/Backup/Windows7"
-	#backup "${OPTS}" "${SRC}" "${DEST}" Desktop Documents Favorites "Saved Games"
+	local SRC="/media/Windows/Users/Julien"
+	local DEST="${BASEDEST}/Backup/Windows"
+	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=desktop.ini \
+		--backup --backup-dir=${BASEDEST}/Deleted"
+	#backup "${OPTS}" "${SRC}" "${DEST}" "${windows_dirs[@]}"
 
 
 	##### LINUX PARTITION BACKUP #####
-	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=.dropbox --exclude=.dropbox.cache --exclude=.git --backup --backup-dir=${BASEDEST}/Deleted"
-	local SRC="$HOME"
-	local DEST="$BASEDEST/Backup/GNU - Linux"
-	backup "${OPTS}" "${SRC}" "${DEST}" bin Documents Dropbox Videos tmpcode
-
-	##### LINUX APACHE SERVER DIRECTORY #####
-	backup "${OPTS}" "/var" "${DEST}" www
+	local SRC="${HOME}"
+	local DEST="${BASEDEST}/Backup/Linux"
+	local OPTS="$DEFAULT_OPTS -v --progress --delete --exclude=.dropbox \
+		--exclude=.dropbox.cache --backup --backup-dir=${BASEDEST}/Deleted"
+	backup "${OPTS}" "${SRC}" "${DEST}" "${linux_dirs[@]}"
 
 	##### LINUX "HIDDEN" FILES: DELETE OLD FILES #####
+	local SRC="${HOME}"
+	local DEST="${BASEDEST}/Backup/Linux/Hidden Files"
 	local OPTS="$DEFAULT_OPTS --delete"
-	local DEST="${DEST}/Hidden Files"
-	backup_hidden "${OPTS}" "${SRC}" "${DEST}" bashrc blobby electrum gitconfig gnupg mozilla minecraft pentadactylrc prboom prboom-plus profile ssh Skype tiemu tmux.conf vimrc vim xchat2 xonotic xscreensaver
+	backup_hidden "${OPTS}" "${SRC}" "${DEST}" "${linux_hidden_dirs[@]}"
+	local SRC="$HOME/.config"
+	backup "${OPTS}" "${SRC}" "${DEST}/config" "${config_dirs[@]}"
+	local SRC="$HOME/.local/share"
+	backup "${OPTS}" "${SRC}" "${DEST}/local/share" "${localshare_dirs[@]}"
 
-	##### LINUX "HIDDEN" FILES: KEEP OLD FILES #####
-	#local OPTS="$DEFAULT_OPTS"
-	#backup_hidden "${OPTS}" "${SRC}" "${DEST}" icedove
+
+	##### ICEDOVE (keep old mail that Icedove deletes automatically) #####
+	local SRC="${HOME}"
+	local DEST="${BASEDEST}/Backup/Linux/Hidden Files"
+	local OPTS="$DEFAULT_OPTS --exclude=ImapMail --exclude=Mail"
+	backup_hidden "${OPTS}" "${SRC}" "${DEST}" icedove
 
 	##### MEDIA BACKUP #####
 	local DEST="${BASEDEST}/Backup/Media"
-	backup "${OPTS}" "${SRC}" "${DEST}" Pictures Music
+	local OPTS="$DEFAULT_OPTS --delete"
+	backup "${OPTS}" "${SRC}" "${DEST}" "${media_dirs[@]}"
+
+	##### LINUX APACHE SERVER DIRECTORY #####
+	#backup "${OPTS}" "/var" "${DEST}" www
 
 	if [ -d "$BASEDEST/Deleted" ]; then
 		echo "Files were deleted."
