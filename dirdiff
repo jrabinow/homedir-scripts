@@ -53,14 +53,13 @@ def main():
     def add_to_dict(filepath):
         rootdir = sys.argv[dirnum]
         path = re.sub("^" + sys.argv[dirnum], "", filepath)
-        filename = os.path.basename(path)
         files[path].append(
                 File(path, hash_file(filepath), rootdir)
         )
 
     valid_dirs = 0
     for i in range(1, len(sys.argv)):
-        sys.argv[i] = sys.argv[i].strip('/') + '/'
+        sys.argv[i] = re.sub("/*$", "/", sys.argv[i])
         if os.path.exists(sys.argv[i]):
             apply_to_dir(sys.argv[i], add_to_dict)
             valid_dirs += 1
