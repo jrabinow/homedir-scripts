@@ -39,6 +39,7 @@ readonly linux_hidden_dirs=(
 	endgame
 	gconf
 	gitconfig
+	google_authenticator
 	gnupg
 	mozilla
 	minecraft
