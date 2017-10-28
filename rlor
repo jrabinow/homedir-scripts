@@ -1,0 +1,53 @@
+#!/usr/bin/expect -f
+
+# Shamelessly stolen from Jim Meyering
+# Usage: rlor HOSTNAME
+# Works like "ssh -lroot HOSTNAME", but sets up your environment
+# on the remote host and preserves shell history across invocations.
+#
+# Requirement: an existing ~/.root-env/ directory with the state
+# that you expect to use, and that serves as the repository for
+# saved shell history.
+
+set force_conservative 0  ;# set to 1 to force conservative mode even if
+			  ;# script wasn't run conservatively originally
+if {$force_conservative} {
+	set send_slow {1 .1}
+	proc send {ignore arg} {
+		sleep .1
+		exp_send -s -- $arg
+	}
+}
+
+proc usage {message} {
+  global program_name
+  send_error "usage: $program_name $message\n"
+  exit 1
+}
+
+set program_name "$argv0"
+if {$argc != 1} { usage {HOSTNAME} }
+set host [lindex $argv 0]
+
+set timeout -1
+set shell $env(SHELL)
+if {[string match "*/zsh" $shell]} {
+    set hist_file ".zsh-history"
+} else {
+    set hist_file ".bash_history"
+}
+set remote_dir ".$env(USER)"
+
+# Copy our start-up files into that directory:
+system "rsync -a --no-owner --no-group --copy-links ~/.root-env/ root@$host:$remote_dir"
+
+# Start interactive session, making that directory $HOME:
+spawn ssh -lroot $host
+match_max 100000
+expect -re ".*\\#(..0.0m)* "
+send -- "HOME=$remote_dir exec $shell\r"
+interact
+
+# Recover updated history file:
+system "rsync --no-owner --no-group root@$host:$remote_dir/$hist_file ~/.root-env"
+system "ssh -lroot $host rm -rf $remote_dir"

@@ -1,0 +1,114 @@
+#!/usr/bin/python
+
+import argparse
+import collections
+import re
+import sys
+
+
+def select_columns(columns):
+    prep = columns.split(',')
+    selection = collections.OrderedDict()
+
+    for p in prep:
+        if '-' in p:
+            val = p.split('-')
+            assert len(val) == 2 and val[0] != '' and val[1] != '',\
+                'Column selector with "-" must be of format "NUM-NUM"'
+            l = list(range(int(val[0])-1, int(val[1])))
+            selection.update(zip(l, [None]*len(l)))
+        else:
+            selection[int(p)-1] = None
+    return set(selection.keys())
+
+
+def group_stream_by_column(lines, group_column, delimiter, filter_key):
+    grouped = collections.defaultdict(list)
+    keysel = select_columns(group_column)
+
+    for line in lines:
+        cols = line.split(delimiter)
+        rowsel = {cnum for cnum in keysel if cnum < len(cols)}
+        keydata, rowdata = [], []
+        for cnum, c in enumerate(cols):
+            (rowdata, keydata)[cnum in rowsel].append(c)
+        key = delimiter.join(keydata)
+        grouped[key].append(
+            delimiter.join(rowdata).strip() if filter_key else line.strip()
+        )
+
+    return grouped
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='Group rows based on a particular column'
+    )
+    parser.add_argument(
+        '--column_number', '-f', default="1", help='Which column to group by'
+    )
+    parser.add_argument(
+        'file', default=['-'], nargs='*', help='Which file to group by'
+    )
+    parser.add_argument(
+        '--filter-key', default=True, action='store_true',
+        help='save entire line as opposed to filtering out the key'
+    )
+    parser.add_argument(
+        '--ignore-key', dest='ignore_key', default=False, action='store_true',
+        help='Dont show the key or the counter only the items that matched'
+    )
+    parser.add_argument(
+        '--delimiter', '-d', dest='column_delimiter', default=' ',
+        help='The column delimiter for the columns in the input'
+    )
+    parser.add_argument(
+        '--group-delimiter', '-g', dest='group_delimiter', default='',
+        help='The string to put between each group'
+    )
+    parser.add_argument(
+        '--separator', '-s', dest='separator', default=' ',
+        help='The string to put between each column in the resulting line'
+    )
+
+    return parser.parse_args()
+
+
+def groupby(fd, args):
+    group_sep = args.group_delimiter.decode('string_escape')
+    sep = args.separator.decode('string_escape')
+    try:
+        grouped = group_stream_by_column(
+            fd,
+            args.column_number,
+            delimiter=args.column_delimiter.decode('string_escape'),
+            filter_key=args.filter_key,
+        )
+    except Exception:
+        raise
+
+    for k, v in grouped.items():
+        if not args.ignore_key:
+            print("{}: {}".format(k, sep.join(v)))
+        else:
+            print(sep.join(v))
+        if group_sep != '':
+            print(group_sep)
+
+
+def main():
+    args = parse_args()
+
+    try:
+        for filename in args.file:
+            if filename == '-':
+                group = groupby(sys.stdin, args)
+            else:
+                with open(filename, 'r') as f:
+                    groupby(f, args)
+    except Exception as e:
+        sys.stderr.write('{}\n'.format(e))
+
+
+if __name__ == '__main__':
+    main()
