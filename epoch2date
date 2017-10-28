@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+
+import argparse
+import logging
+from time import ctime
+
+LOG = logging.getLogger()
+LOG.setLevel('INFO')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+LOG.addHandler(ch)
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='enable debug logging information',
+    )
+    parser.add_argument(
+        'epochtimes',
+        type=int,
+        nargs='+',
+        help='time in number of seconds since epoch'
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    for t in args.epochtimes:
+        print(ctime(t))
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+
+import os, sys, time, shutil
+from contextlib import contextmanager
+
+BASEDIR = os.path.expanduser('~/references/saved_scm_files')
+
+@contextmanager
+def working_directory(newdir):
+    try:
+        prevdir = os.getcwd()
+    except OSError as e:
+        sys.stderr.write('Unable to get current dir. Something nasty happened.\n')
+        exit(1)
+    try:
+        os.chdir(os.path.expanduser(newdir))
+    except FileNotFoundError as e:
+        sys.stderr.write('{0}: no such file or directory\n'.format(newdir))
+    try:
+        yield
+    finally:
+        try:
+            os.chdir(prevdir)
+        except FileNotFoundError as e:
+            sys.stderr.write('{0}: no such file or directory. Context cannot be restored\n'.format(newdir))
+            exit(1)
+
+
+def ensure_dir(path):
+    if not os.path.isdir(path):
+        try:
+            os.makedirs(path)
+        except OSError as e:
+            sys.stderr.write("Error creating directory {0}\n".format(path))
+            exit(1)
+
+def restore_file(f):
+    raise NotImplementedError('yesterday you said tomorrow')
+
+
+def usage():
+    sys.stderr.write("Usage: {0} FILE1 [FILE2...]\n".format(sys.argv[0]))
+
+def backup_file(f):
+    version = time.strftime('%Y-%m-%d--%H:%M:%S')
+    filename = os.path.basename(f)
+    f_with_version = filename + '---' + version
+    current_dir = os.path.dirname(f)
+    homedir = os.getenv('HOME')
+
+    if current_dir == '':
+        current_dir = '.'
+    with working_directory(current_dir):
+        current_dir = os.getcwd()
+        current_dir = current_dir.replace(homedir, '')
+        newdir = BASEDIR + '/' + current_dir
+        ensure_dir(newdir)
+        shutil.copy2(filename, newdir + '/' + f_with_version)
+
+
+def main():
+    if len(sys.argv) < 2:
+        usage()
+        exit()
+    if sys.argv[0].endswith('backupfile'):
+        for f in sys.argv[1:]:
+            backup_file(f)
+    elif sys.argv[0].endswith('restorefile'):
+        for f in sys.argv[1:]:
+            restore_file(f)
+    else:
+        sys.argv[0] = 'backupfile|restorefile'
+        usage()
+
+
+if __name__ == '__main__':
+    main()

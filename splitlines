@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+
+import sys, getopt
+
+def usage():
+    sys.stderr.write(
+"""Usage: {0} [-d DELIM]\n""".format(sys.argv[0])
+)
+
+def main():
+    delim = '\t'
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'd:h', ['delimiter='])
+    except getopt.GetoptError:
+        usage()
+        exit(2)
+
+    for opt, arg in opts:
+        if opt in ('-h', '--help'):
+            usage()
+            exit(0)
+        elif opt in ('-d', '--delimiter'):
+            delim = arg
+        else:
+            usage()
+            exit(1)
+
+    for line in sys.stdin:
+        for segment in line.strip().split(delim):
+            print(segment)
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# trims whitespace at beginning and end of lines
+
+function main ()
+{
+    if [ $# -gt 1 ]; then
+        while [ $# -gt 1 ]; do
+            file="${1}"; shift
+            sed -i -e 's/^\s*//;s/\s*$//' "${file}"
+        done
+    else
+        sed -e 's/^\s*//;s/\s*$//'
+    fi
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# reaps zombie processes
+
+set -u              # quit if we try to use unset variable
+
+function main ()
+{
+    processes=$(ps aux|grep -E '\s+[zZ]\s+')
+    if [ ! -z "${processes}" ]; then
+        echo "Killing:"
+        echo "${processes}"
+        pids="$(echo "${processes}" | awk '{print $2}')"
+        usleep 100000   # don't bother with short lived processes
+        kill ${pids}
+    else
+        echo "No zombie processes!"
+    fi
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi

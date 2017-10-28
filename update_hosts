@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# download host lists and apply them to /etc/hosts
+# this should be sufficient to kill ads in both spotify and google play
+
+function main ()
+{
+	# backup hosts file if there is none
+	if [ ! -e /etc/hosts.orig ]; then
+		sudo cp /etc/hosts{,.orig}
+		echo -e '\n# The following hosts are all ad servers, the list can be updated by\n# running update_hosts\n' \
+			| sudo tee -a /etc/hosts.orig > /dev/null
+	fi
+
+	adservers="
+		https://adaway.org/hosts.txt
+		https://hosts-file.net/ad_servers.txt
+		https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
+	"
+	newhosts=$(mktemp)
+
+	# remove lines with localhost, we already take care of those
+	# make sure only lines redirecting to localhost are authorized
+	# strip inline comments
+	# replace space following ipaddr with a tab
+	# replace 127.0.0.1 with 0.0.0.0 (is this really needed?!?!?)
+	# remove duplicate lines
+	# convert from that BS that windows calls EOLs to proper '\n's
+	curl ${adservers}  \
+		| grep -v localhost \
+		| sed -nr '/^(127\.0\.0\.1|::1)\s+/p' \
+		| sed -r 's/\r/\n/;s/\s+#.*//;s/^(127\.0\.0\.1|::1) +/\1\t/' \
+		| awk '!seen[$0]++' > "${newhosts}"
+	cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
+	cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
+	sudo chown root:root /etc/hosts
+	sudo chmod 644 /etc/hosts
+	rm "${newhosts}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi

@@ -1,0 +1,19 @@
+#!/bin/bash
+
+function main ()
+{
+    tmpdir="$(mktemp -d)"
+    tmprc="$(mktemp)"
+
+    cat > "$tmprc" << EOF
+PS1='\$ '
+cd "$tmpdir"
+EOF
+
+    env - HOME="$HOME" TERM="$TERM" bash --noprofile --rcfile "$tmprc"
+    rm -r "$tmpdir" "$tmprc"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
