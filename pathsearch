@@ -53,7 +53,7 @@ def main():
             sys.stderr.write("no such directory {}\n".format(p))
             continue
         for f in files:
-            if re_devserver.search(f) and os.path.isfile(f):
+            if re_devserver.search(f) and os.path.isfile(os.path.join(p, f)):
                 print("{}/{}".format(p, f))
 
 
