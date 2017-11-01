@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import os, sys, re, urllib, tempfile
-from bs4 import BeautifulSoup
+
+import argparse
 import base64
+import os
+import re
+import sys
+import urllib
+from bs4 import BeautifulSoup
+
 
 DEFAULT_OUT_FILE = '/tmp/proxy_list_' 
 
@@ -16,9 +23,11 @@ def http_download(url):
     return urllib.request.urlopen(request).read()
 
 
-def scrape_proxies_proxylist_org():
+def scrape_proxies_proxylist_org(debug):
     PROXYLIST_ORG_URL = 'http://proxy-list.org/english/index.php'
     proxy_list = []
+    if debug:
+        proxy_list.append('========= BEGIN PROXYLIST ==============')
 
     # setup progress bar (this func takes more time to run)
     toolbar_width = 18
@@ -35,82 +44,105 @@ def scrape_proxies_proxylist_org():
             break
         soup = BeautifulSoup(html_page, "lxml")
         proxy_list.extend(
-            str(base64.b64decode(proxy.text[7:-1]))
-            for proxy in soup.find_all(attrs={'class':'proxy'})
-            if proxy.text != 'Proxy'
+            base64.b64decode(proxy.li.text[7:-2]) for proxy in
+            soup.find_all('ul')[4:] if proxy.find_all('li')[3].text != 'Transparent'
         )
         # update the bar
         sys.stderr.write("**")
         sys.stderr.flush()
     sys.stderr.write('\n')
+
+    if debug:
+        proxy_list.append('================== END PROXYLIST ===================')
     return proxy_list
 
 
-def scrape_proxies_ipaddress_com():
+def scrape_proxies_ipaddress_com(debug):
     IPADDRESS_COM_URL = 'http://www.ip-adress.com/proxy_list/'
-    proxy_list = []
     try:
         html_page = http_download(IPADDRESS_COM_URL)
     except urllib.error.URLError as e:
         sys.stderr.write("Error: {}\n".format(e))
         sys.stderr.write("Skipping ip-address.com\n")
-        return proxy_list
+        return []
 
+    proxy_list = []
+    if debug:
+        proxy_list.append('================== BEGIN IPADDRESS ===================')
     soup = BeautifulSoup(html_page, "lxml")
-    proxy_list.extend(
-        entry.td.text for entry in
-        soup.find_all('tr', attrs={'class':re.compile('even|odd')})
-    )
+    proxy_list.extend([
+        entry.find_all('td')[0].text for entry in
+        soup.find_all('tr')[1:] if entry.find_all('td')[1].text != 'transparent'
+    ])
+    if debug:
+        proxy_list.append('================== END IPADDRESS ===================')
     return proxy_list
 
 
-def scrape_proxies_aliveproxy_com():
+def scrape_proxies_aliveproxy_com(debug):
     ALIVEPROXY_COM_URL = 'http://aliveproxy.com/fastest-proxies/'
-    proxy_list = []
-    ipaddr_pattern = re.compile('^([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{,5})?$')
+    #ipaddr_pattern = re.compile('^([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{,5})?$')
     try:
         html_page = http_download(ALIVEPROXY_COM_URL)
     except urllib.error.URLError as e:
         sys.stderr.write("Error: {}\n".format(e))
         sys.stderr.write("Skipping aliveproxy.com\n")
-        return proxy_list
+        return []
+
     soup = BeautifulSoup(html_page, "lxml")
-    proxy_list.extend(
-        el.text for el in soup.find_all(
-            'td', attrs={'class':re.compile('dt-tb1|2')}
-        ) if ipaddr_pattern.match(el.text)
-    )
+    proxy_list = []
+    if debug:
+        proxy_list.append('================== BEGIN ALIVEPROXY ===================')
+    proxy_list.extend([
+        el[0].text for el in zip(*[iter(soup.find_all(
+            'td', attrs={'class': re.compile('dt-tb1|2')}
+        ))]*10) if el[2].text != 'Transparent'
+    ])
+    if debug:
+        proxy_list.append('================== END ALIVEPROXY ===================')
     return proxy_list
 
 
-def write_to_file(proxy_list, output_file = DEFAULT_OUT_FILE):
+def write_to_file(proxy_list):
     unicode_bs = re.compile("^b'.*'$")
-    file_name = os.path.basename(output_file)
-    dir_name = os.path.dirname(output_file)
     for p in proxy_list:
+        p = str(p)
         if unicode_bs.match(p):
             p = p[2:-1]
         print(p)
 
 
-def main():
-    if len(sys.argv) != 2:
-        output_file = DEFAULT_OUT_FILE
-    else:
-        output_file = sys.argv[1]
+"""
+Write_description_and_usage_example_here
+"""
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='enable debug logging information',
+    )
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
     proxy_list = []
+
     print("Downloading from aliveproxy.com", file=sys.stderr)
-    proxy_list.extend(scrape_proxies_aliveproxy_com())
+    proxy_list.extend(scrape_proxies_aliveproxy_com(args.debug))
 
     print("Downloading from proxy-list.org", file=sys.stderr)
-    proxy_list.extend(scrape_proxies_proxylist_org())
+    proxy_list.extend(scrape_proxies_proxylist_org(args.debug))
 
     print("Downloading from ip-adress.com", file=sys.stderr)
-    proxy_list.extend(scrape_proxies_ipaddress_com())
+    proxy_list.extend(scrape_proxies_ipaddress_com(args.debug))
 
-    proxy_list = set(proxy_list)
-    write_to_file(proxy_list, output_file)
+    if not args.debug:
+        proxy_list = set(proxy_list)
+    write_to_file(proxy_list)
 
 
 if __name__ == '__main__':
