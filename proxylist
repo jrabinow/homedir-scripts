@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+
+import os, sys, re, urllib, tempfile
+from bs4 import BeautifulSoup
+import base64
+
+DEFAULT_OUT_FILE = '/tmp/proxy_list_' 
+
+def http_download(url):
+    request = urllib.request.Request(url)
+    # ip-address.com is a bitch and requires setting the user agent
+    request.add_header(
+        'User-Agent',
+        'Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0'
+    )
+    return urllib.request.urlopen(request).read()
+
+
+def scrape_proxies_proxylist_org():
+    PROXYLIST_ORG_URL = 'http://proxy-list.org/english/index.php'
+    proxy_list = []
+
+    # setup progress bar (this func takes more time to run)
+    toolbar_width = 18
+    sys.stderr.write("[%s]" % (" " * toolbar_width))
+    sys.stderr.flush()
+    sys.stderr.write("\b" * (toolbar_width+1)) # return to start of line, after '['
+
+    for page in [ PROXYLIST_ORG_URL + '?p=' + str(i) for i in range(1, 10) ]:
+        try:
+            html_page = http_download(page)
+        except urllib.error.URLError as e:
+            sys.stderr.write("Error: {}\n".format(e))
+            sys.stderr.write("Skipping proxy-list.org\n")
+            break
+        soup = BeautifulSoup(html_page, "lxml")
+        proxy_list.extend(
+            str(base64.b64decode(proxy.text[7:-1]))
+            for proxy in soup.find_all(attrs={'class':'proxy'})
+            if proxy.text != 'Proxy'
+        )
+        # update the bar
+        sys.stderr.write("**")
+        sys.stderr.flush()
+    sys.stderr.write('\n')
+    return proxy_list
+
+
+def scrape_proxies_ipaddress_com():
+    IPADDRESS_COM_URL = 'http://www.ip-adress.com/proxy_list/'
+    proxy_list = []
+    try:
+        html_page = http_download(IPADDRESS_COM_URL)
+    except urllib.error.URLError as e:
+        sys.stderr.write("Error: {}\n".format(e))
+        sys.stderr.write("Skipping ip-address.com\n")
+        return proxy_list
+
+    soup = BeautifulSoup(html_page, "lxml")
+    proxy_list.extend(
+        entry.td.text for entry in
+        soup.find_all('tr', attrs={'class':re.compile('even|odd')})
+    )
+    return proxy_list
+
+
+def scrape_proxies_aliveproxy_com():
+    ALIVEPROXY_COM_URL = 'http://aliveproxy.com/fastest-proxies/'
+    proxy_list = []
+    ipaddr_pattern = re.compile('^([0-9]{1,3}\.){3}[0-9]{1,3}(:[0-9]{,5})?$')
+    try:
+        html_page = http_download(ALIVEPROXY_COM_URL)
+    except urllib.error.URLError as e:
+        sys.stderr.write("Error: {}\n".format(e))
+        sys.stderr.write("Skipping aliveproxy.com\n")
+        return proxy_list
+    soup = BeautifulSoup(html_page, "lxml")
+    proxy_list.extend(
+        el.text for el in soup.find_all(
+            'td', attrs={'class':re.compile('dt-tb1|2')}
+        ) if ipaddr_pattern.match(el.text)
+    )
+    return proxy_list
+
+
+def write_to_file(proxy_list, output_file = DEFAULT_OUT_FILE):
+    unicode_bs = re.compile("^b'.*'$")
+    file_name = os.path.basename(output_file)
+    dir_name = os.path.dirname(output_file)
+    for p in proxy_list:
+        if unicode_bs.match(p):
+            p = p[2:-1]
+        print(p)
+
+
+def main():
+    if len(sys.argv) != 2:
+        output_file = DEFAULT_OUT_FILE
+    else:
+        output_file = sys.argv[1]
+
+    proxy_list = []
+    print("Downloading from aliveproxy.com", file=sys.stderr)
+    proxy_list.extend(scrape_proxies_aliveproxy_com())
+
+    print("Downloading from proxy-list.org", file=sys.stderr)
+    proxy_list.extend(scrape_proxies_proxylist_org())
+
+    print("Downloading from ip-adress.com", file=sys.stderr)
+    proxy_list.extend(scrape_proxies_ipaddress_com())
+
+    proxy_list = set(proxy_list)
+    write_to_file(proxy_list, output_file)
+
+
+if __name__ == '__main__':
+    main()
