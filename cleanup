@@ -96,6 +96,7 @@ function main ()
         .texmf-var
         .themes
         .thumbnails
+        .tmp
         .update-notifier
         .vidalia
         .wireshark
@@ -144,8 +145,10 @@ function main ()
         clipit
         DjVuLibre
         enchant
+        eog
         evince
         evolution
+        gedit
         gnome-disk-utility
         gnome-initial-setup-done
         gnome-session
@@ -161,9 +164,12 @@ function main ()
         libreoffice
         libvirt
         menus
+        nautilus
         octave
+        qvm-mru-filecopy
         Skype
         sqlitebrowser
+        totem
         Thunar
         tracker
         viewnior
@@ -200,7 +206,7 @@ function main ()
         rm -f "$HOME/${f}"
     done
     for d in "${config_dirs[@]}"; do
-        rm -rf "$HOME/.config/${f}"
+        rm -rf "$HOME/.config/${d}"
     done
     for f in "${config_files[@]}"; do
         rm -f "$HOME/.config/${f}"
@@ -230,7 +236,7 @@ function main ()
     if [ $# -eq 1 ] && [ $1 == "-b" ]; then
       bleachbit_func
     fi
-	root_func
+    root_func
 }
 
 function bleachbit_func ()
@@ -378,11 +384,11 @@ function bleachbit_func ()
 
 function root_func ()
 {
-	if [ $EUID == 0 ]; then
-		echo LoL
-#		rm -r "/usr/share/locale/{[a-dg-z]*,e!(n),fr[a-z_@]*}"
-#		rm -r /usr/share/man/[a-no-z]*
-	fi
+    if [ $EUID == 0 ]; then
+        echo LoL
+#        rm -r "/usr/share/locale/{[a-dg-z]*,e!(n),fr[a-z_@]*}"
+#        rm -r /usr/share/man/[a-no-z]*
+    fi
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
