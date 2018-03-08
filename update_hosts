@@ -5,6 +5,15 @@
 
 function main ()
 {
+	case $(uname) in
+		Linux)
+			GROUP=root
+			;;
+		Darwin)
+			GROUP=wheel
+			;;
+	esac
+
 	# backup hosts file if there is none
 	if [ ! -e /etc/hosts.orig ]; then
 		sudo cp /etc/hosts{,.orig}
@@ -21,19 +30,19 @@ function main ()
 
 	# remove lines with localhost, we already take care of those
 	# make sure only lines redirecting to localhost are authorized
+	# convert from that BS that windows calls EOLs to proper '\n's
 	# strip inline comments
 	# replace space following ipaddr with a tab
-	# replace 127.0.0.1 with 0.0.0.0 (is this really needed?!?!?)
 	# remove duplicate lines
-	# convert from that BS that windows calls EOLs to proper '\n's
 	curl ${adservers}  \
 		| grep -v localhost \
-		| sed -nr '/^(127\.0\.0\.1|::1)\s+/p' \
-		| sed -r 's/\r/\n/;s/\s+#.*//;s/^(127\.0\.0\.1|::1) +/\1\t/' \
+		| sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
+		| dos2unix \
+		| sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1	/' \
 		| awk '!seen[$0]++' > "${newhosts}"
 	cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
 	cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
-	sudo chown root:root /etc/hosts
+	sudo chown "root:${GROUP}" /etc/hosts
 	sudo chmod 644 /etc/hosts
 	rm "${newhosts}"
 }
