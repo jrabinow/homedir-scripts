@@ -17,8 +17,15 @@ function main ()
 	# backup hosts file if there is none
 	if [ ! -e /etc/hosts.orig ]; then
 		sudo cp /etc/hosts{,.orig}
-		echo -e '\n# The following hosts are all ad servers, the list can be updated by\n# running update_hosts\n' \
-			| sudo tee -a /etc/hosts.orig > /dev/null
+		read -r -d '' textstr << EOM
+
+# The following hosts are all ad servers, the list can be updated by
+# running update_hosts
+
+127.0.0.1	gads.pubmatic.com
+127.0.0.1	spclient.wg.spotify.com
+EOM
+			sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
 	fi
 
 	adservers="

@@ -61,7 +61,6 @@ function main ()
         .links
         .links2
         .macromedia
-        .macports
         .matlab
         .matplotlib
         .mc
