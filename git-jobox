@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# updates all git repos in directory
+
+function main ()
+{
+	JOBOX_DIR=${JOBOX:-$HOME/Documents/jobox-src}
+	cd "${JOBOX_DIR}"
+	for subdir in *; do
+		test -d "${subdir}/.git" || continue
+		cd "${subdir}"
+		repostatus=$(git st --short)
+		if [ -z "${repostatus}" ]; then
+			echo "=========== UPDATING REPO ${subdir} ==========="
+			git pull
+		else
+			echo "=========== DIRTY REPO $subdir =========="
+		fi
+		cd "${JOBOX_DIR}"
+	done
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
