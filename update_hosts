@@ -27,6 +27,13 @@ function main ()
 EOM
 			sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
 	fi
+	# whitelist exactly the hostname pattern here. "^mixpanel.com$" will
+	# whitelist traffic to mixpanel.com, but lines such as
+	# api.mixpanel.com will still be blocked
+	whitelist=(
+		"^mixpanel.com$"
+		"^segment.com$"
+	)
 
 	adservers="
 		https://adaway.org/hosts.txt
@@ -46,7 +53,14 @@ EOM
 		| sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
 		| dos2unix \
 		| sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1	/' \
-		| awk '!seen[$0]++' > "${newhosts}"
+		| awk '!seen[$0]++' \
+		> "${newhosts}"
+	# remove whitelisted lines
+	for w in ${whitelist[@]}; do
+		pattern="$(echo "${w}"|sed 's/\^/^127.0.0.1	/')"
+		echo $pattern
+		sed -i '' "/${pattern}/d"  "${newhosts}"
+	done
 	cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
 	cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
 	sudo chown "root:${GROUP}" /etc/hosts

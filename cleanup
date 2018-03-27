@@ -60,6 +60,7 @@ function main ()
         .lftp
         .links
         .links2
+        .lnav
         .macromedia
         .matlab
         .matplotlib
@@ -92,6 +93,7 @@ function main ()
         .sqlite_history
         .sunstudio
         .swt
+        .terraform.d
         .texmf-var
         .themes
         .thumbnails
