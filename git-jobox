@@ -4,7 +4,9 @@
 
 function main ()
 {
+	GITARGS=${@:-pull}
 	JOBOX_DIR=${JOBOX:-$HOME/Documents/jobox-src}
+
 	cd "${JOBOX_DIR}"
 	for subdir in *; do
 		test -d "${subdir}/.git" || continue
@@ -12,9 +14,9 @@ function main ()
 		repostatus=$(git st --short)
 		if [ -z "${repostatus}" ]; then
 			echo "=========== UPDATING REPO ${subdir} ==========="
-			git pull
+			git ${GITARGS}
 		else
-			echo "=========== DIRTY REPO $subdir =========="
+			echo -e "\033[31m=========== DIRTY REPO $subdir ==========\033[0m"
 		fi
 		cd "${JOBOX_DIR}"
 	done
