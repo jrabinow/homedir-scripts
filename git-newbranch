@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# create and checkout new branch, set up remote push url
+
+function main ()
+{
+	if [ $# != 1 ]; then
+		echo "Usage $0 BRANCHNAME"
+		exit 1
+	fi
+	branchname="${1}"; shift
+	git checkout -b "${branchname}"
+	git push
+	git branch -u "origin/${branchname}" "${branchname}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi

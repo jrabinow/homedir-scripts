@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# display stats for a file in git source control
+
+function usage ()
+{
+    cat >&2 << EOF
+Usage: $(basename $0) [OPTION]... FILE...
+Options: -t N: display top N commits
+	 -h: show this help dialog
+EOF
+}
+
+function main ()
+{
+   TOP=5
+	while getopts "t:h" opt; do
+		case ${opt} in
+			h)	# help message
+                usage
+				exit 0
+				;;
+            t)
+                TOP="${OPTARG}"
+                shift; shift
+				;;
+			?)
+				echo "Unknown option, exiting now" >&2
+				exit 1
+				;;
+		esac
+	done
+
+    if [ $# -eq 0 ]; then
+        usage
+        exit 1
+    fi
+
+    txt=$(git blame --date=format:%G --show-email "$@")
+    numlines=$(wc -l <<< "${txt}")
+    echo "${numlines} total lines"|sed 's/^\s+//'
+    echo "----- YEARS -----"
+    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+\d{4}\s+\d*\)' \
+        | sed 's/^(.*\([0-9]\{4\}\).*)$/\1/' \
+        | sort \
+        | uniq -c \
+        | sort -r \
+        | awk '{print $2 " -> " $1 " lines"}'
+    echo "----- TOP AUTHORS -----"
+    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+\d{4}\s+\d*\)' \
+        | sed 's/^(\(<.*@.*>\).*)$/\1/' \
+        | sort \
+        | uniq -c \
+        | sort -r \
+        | awk '{print $2 " -> " $1 " lines"}'|column -t
+    echo "----- TOP DIFFS -----"
+    echo "${txt}" | cut -b-8 \
+        | sort \
+        | uniq -c \
+        | sort -rn \
+        | head -n"${TOP}" \
+        | cut -b6- \
+        | sed 's/^\^//' \
+        | xargs -n1 git log -n1 --pretty='%h %ai %aE		%s'
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
