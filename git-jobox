@@ -2,24 +2,56 @@
 
 # updates all git repos in directory
 
+set -e -u
+
 function main ()
 {
-	GITARGS=${@:-pull}
-	JOBOX_DIR=${JOBOX:-$HOME/Documents/jobox-src}
+    JOBOX_DIR=${JOBOX:-$HOME/Documents/jobox-src}
+    FORCE_DIRTY=false
+    while getopts "fh" opt; do
+        case ${opt} in
+            f)  # force operation on dirty repos
+                FORCE_DIRTY=true
+                shift
+                ;;
+            h)    # help message
+                cat << EOF
+Usage: $(basename $0) [OPTION]...
+Options: -f: update dirty repos
+         -h: show this help dialog
+EOF
+                exit 0
+                ;;
+            ?)
+                echo "Unknown option, exiting now" >&2
+                exit 1
+                ;;
+        esac
+    done
 
-	cd "${JOBOX_DIR}"
-	for subdir in *; do
-		test -d "${subdir}/.git" || continue
-		cd "${subdir}"
-		repostatus=$(git st --short)
-		if [ -z "${repostatus}" ]; then
-			echo "=========== UPDATING REPO ${subdir} ==========="
-			git ${GITARGS}
-		else
-			echo -e "\033[31m=========== DIRTY REPO $subdir ==========\033[0m"
-		fi
-		cd "${JOBOX_DIR}"
-	done
+    GITARGS=${@:-pull}
+
+    cd "${JOBOX_DIR}"
+    for subdir in *; do
+        test -d "${subdir}/.git" || continue
+        cd "${subdir}"
+        repostatus=$(git st --short)
+        if [ -z "${repostatus}" ]; then
+            echo "=========== UPDATING REPO ${subdir} ==========="
+            git ${GITARGS}
+        elif $FORCE_DIRTY; then
+           STASHNAME="GIT_JOBOX_COMMIT"
+            echo "=========== UPDATING REPO ${subdir} ==========="
+            git stash push -m "${STASHNAME}"
+            if [ $? == 0 ]; then
+                git "${GITARGS}"
+                git stash pop
+            fi
+        else
+            echo -e "\033[31m=========== DIRTY REPO $subdir ==========\033[0m"
+        fi
+        cd "${JOBOX_DIR}"
+    done
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
