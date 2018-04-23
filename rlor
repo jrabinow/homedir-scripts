@@ -9,6 +9,10 @@
 # that you expect to use, and that serves as the repository for
 # saved shell history.
 
+set user "ubuntu"
+set default_args "-i $env(HOME)/.ssh/jobox-development.pem"
+set ssh_client ssh
+
 set force_conservative 0  ;# set to 1 to force conservative mode even if
 			  ;# script wasn't run conservatively originally
 if {$force_conservative} {
@@ -39,15 +43,20 @@ if {[string match "*/zsh" $shell]} {
 set remote_dir ".$env(USER)"
 
 # Copy our start-up files into that directory:
-system "rsync -a --no-owner --no-group --copy-links ~/.root-env/ root@$host:$remote_dir"
+system "rsync -a --no-owner --no-group --copy-links ~/.root-env/ -e 'ssh $default_args' $user@$host:$remote_dir"
 
 # Start interactive session, making that directory $HOME:
-spawn ssh -lroot $host
+if { $ssh_client == "mosh" } {
+	spawn mosh --ssh="ssh -i /Users/julien/.ssh/jobox-development.pem" $user@$host
+} else {
+	spawn ssh -i /Users/julien/.ssh/jobox-development.pem $user@$host
+}
+
 match_max 100000
 expect -re ".*\\#(..0.0m)* "
 send -- "HOME=$remote_dir exec $shell\r"
 interact
 
 # Recover updated history file:
-system "rsync --no-owner --no-group root@$host:$remote_dir/$hist_file ~/.root-env"
-system "ssh -lroot $host rm -rf $remote_dir"
+system "rsync --no-owner --no-group -e 'ssh $default_args' $user@$host:$remote_dir/$hist_file ~/.$user-env"
+system "ssh -l$user $default_args $host rm -rf $remote_dir"
