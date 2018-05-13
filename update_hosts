@@ -59,7 +59,7 @@ EOM
 	# remove whitelisted lines
 	for w in ${whitelist[@]}; do
 		pattern="$(sed 's/\^/^127.0.0.1	/' <<< "${w}")"
-		sed -i '' "/${pattern}/d"  "${newhosts}"
+		sed -i "/${pattern}/d"  "${newhosts}"
 	done
 	cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
 	cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
