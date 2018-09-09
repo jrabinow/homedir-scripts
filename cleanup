@@ -22,17 +22,20 @@ function main ()
         .assaultcube_v1.104
         .audacity-data
         .cache
+        .CFUserTextEncoding
         .cgobanrc
         .cinnamon
         .dbus
         .ddd
         .dreamchess
+        .DS_Store
         .dvdcss
         .eclipse
         .elinks
         .emacs.d
         .evolution
         .fontconfig
+        .forever
         .gconfd
         .gdb_history
         .gegl-0.0
@@ -73,6 +76,8 @@ function main ()
         .nautilus
         .nedit
         .nemo
+        .node-gyp
+        .npm
         .nv
         .nvimlog
         .octave_hist
@@ -105,8 +110,13 @@ function main ()
         .update-notifier
         .vidalia
         .wireshark
+        .yarn
     )
     homedir_files=(
+        .AndroidStudio2.0/config/options/feature.usage.statistics.xml
+        .AndroidStudio2.0/config/options/statistics.application.usages.xml
+        .AndroidStudio2.0/config/options/usage.statistics.xml
+        .ICEauthority
         .aspell*
         .cuda-gdbinit
         .emulator_console_auth_token
@@ -118,7 +128,6 @@ function main ()
         .hivehistory
         .hphpd.history
         .hphpd.ini
-        .ICEauthority
         .imsettings.log
         .lesshst
         .mysql_history
@@ -138,29 +147,30 @@ function main ()
         .sqlite_history
         .sudo_as_admin_successful
         .tilp
-        .viminfo
         .vim/.netrwhist
+        .viminfo
         .wget-hsts
         .xfce4-session.verbose-log*
         .xsession
         .xsession-errors*
+        .yarnrc
         .ypp_42
         .zcompdump
-        .AndroidStudio2.0/config/options/usage.statistics.xml
-        .AndroidStudio2.0/config/options/feature.usage.statistics.xml
-        .AndroidStudio2.0/config/options/statistics.application.usages.xml
     )
     config_dirs=(
         abrt
         "chromium/Default/Local Storage"
         cinnamon-session
         clipit
+        configstore
         DjVuLibre
         enchant
         eog
         evince
         evolution
+        filezilla
         gedit
+        git
         gnome-disk-utility
         gnome-initial-setup-done
         gnome-session
@@ -173,6 +183,7 @@ function main ()
         ibus
         imsettings
         kazam
+        lftp
         libreoffice
         libvirt
         menus
@@ -195,21 +206,27 @@ function main ()
         user-dirs.dirs
         user-dirs.locale
     )
+    localshare_dirs=(
+        lftp
+        nvim
+    )
     tmpfiles=(
-        www-vmtouch-*
-        www_vmtouch_db_cache.json
-        perf-*.map
+        com.apple.CoreSimulator.SimDevice.*
+        com.apple.launchd.*
+        fastzip-castree-uid-*
+        gnash-cookies.*
+        hhvm_*
+        packman-fb-*
         par_preload_unpack.*
         par_unpack.*
+        perf-*.map
         pymp-*
-        wmlock-*
         scm-internal-stats*
-        fastzip-castree-uid-*
-        packman-fb-*
-        tmp*
         testpilot.*
-        hhvm_*
-        gnash-cookies.*
+        tmp*
+        wmlock-*
+        www-vmtouch-*
+        www_vmtouch_db_cache.json
     )
     for d in "${homedir_dirs[@]}"; do
         rm -rf "$HOME/${d}"
@@ -222,6 +239,9 @@ function main ()
     done
     for f in "${config_files[@]}"; do
         rm -f "$HOME/.config/${f}"
+    done
+    for d in "${localshare_dirs[@]}"; do
+        rm -rf "$HOME/.local/share/${d}"
     done
     for d in "${tmpfiles[@]}"; do
         sudo rm -rf /tmp/${tmpfiles}
