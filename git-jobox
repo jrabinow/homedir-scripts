@@ -29,24 +29,24 @@ EOF
         esac
     done
 
-    GITARGS=${@:-pull}
+    GITARGS="${@:-pull}"
 
     cd "${JOBOX_DIR}"
     for subdir in *; do
         test -d "${subdir}/.git" || continue
         cd "${subdir}"
-        repostatus=$(git st --short)
+        repostatus=$(git status --short|grep -v '^??'||true)
         if [ -z "${repostatus}" ]; then
             echo "=========== UPDATING REPO ${subdir} ==========="
             git ${GITARGS}
         elif $FORCE_DIRTY; then
            STASHNAME="GIT_JOBOX_COMMIT"
             echo "=========== UPDATING REPO ${subdir} ==========="
-            git stash push -m "${STASHNAME}"
-            if [ $? == 0 ]; then
-                git "${GITARGS}"
-                git stash pop
-            fi
+            #git stash push -m "${STASHNAME}"
+            #if [ $? == 0 ]; then
+                git ${GITARGS}
+                #git stash pop
+            #fi
         else
             echo -e "\033[31m=========== DIRTY REPO $subdir ==========\033[0m"
         fi
