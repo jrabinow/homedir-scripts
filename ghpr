@@ -97,7 +97,7 @@ EOS
     BODY=("\"head\": \"${HEAD}\"", "\"base\": \"${BASE}\"", "\"title\": \"${TITLE}\"")
 
     if [[ -n "${DESCRIPTION}" ]]; then
-        BODY+=(", \"body\": \"$(sed -e 's/$/\\n/' <<< "${DESCRIPTION@Q}" | tr -d '\n')\"")
+        BODY+=(", \"body\": \"$(sed -e 's/$/\\n/' <<< "${DESCRIPTION}" | tr -d '\n')\"")
     fi
 
     BODY="{${BODY[*]}}"
