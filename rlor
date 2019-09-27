@@ -9,7 +9,7 @@
 # that you expect to use, and that serves as the repository for
 # saved shell history.
 
-set user "ubuntu"
+set user "centos"
 set default_args "-i $env(HOME)/.ssh/jobox-development.pem"
 set ssh_client ssh
 
