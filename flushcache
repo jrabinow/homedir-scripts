@@ -1,3 +1,10 @@
 #!/bin/bash
 
-sync; sync; sync; sudo bash -c 'echo 3 > /proc/sys/vm/drop_caches'
+platform="$(uname)"
+if [[ "${platform}" == "linux" ]]; then
+    sync; sleep 1; sync; sleep 1; sync; sleep 1; sudo bash -c 'echo 3 > /proc/sys/vm/drop_caches'
+elif [[ "${platform}" == "Darwin" ]]; then
+    sync && sudo purge
+else
+    printf "unknown os\n"
+fi
