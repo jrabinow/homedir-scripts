@@ -33,7 +33,7 @@ EOF
 
     cd "${JOBOX_DIR}"
     for subdir in *; do
-        test -d "${subdir}/.git" || continue
+        test -d "${subdir}/.git" && [[ "${subdir}" != "jobox-api" ]] || continue
         cd "${subdir}"
         repostatus=$(git status --short|grep -v '^??'||true)
         if [ -z "${repostatus}" ]; then
