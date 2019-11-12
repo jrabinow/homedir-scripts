@@ -5,68 +5,69 @@
 
 function main ()
 {
-	case $(uname) in
-		Linux)
-			GROUP=root
-			;;
-		Darwin)
-			GROUP=wheel
-			;;
-	esac
+    case $(uname) in
+        Linux)
+            GROUP=root
+            ;;
+        Darwin)
+            GROUP=wheel
+            ;;
+    esac
 
-	# backup hosts file if there is none
-	if [ ! -e /etc/hosts.orig ]; then
-		sudo cp /etc/hosts{,.orig}
-		read -r -d '' textstr << EOM
+    # backup hosts file if there is none
+    if [ ! -e /etc/hosts.orig ]; then
+        sudo cp /etc/hosts{,.orig}
+        read -r -d '' textstr << EOM
 
 # The following hosts are all ad servers, the list can be updated by
 # running update_hosts
 
-127.0.0.1	gads.pubmatic.com
-127.0.0.1	spclient.wg.spotify.com
+127.0.0.1   gads.pubmatic.com
+127.0.0.1   spclient.wg.spotify.com
 EOM
-			sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
-	fi
-	# whitelist exactly the hostname pattern here. "^mixpanel.com$" will
-	# whitelist traffic to mixpanel.com, but lines such as
-	# api.mixpanel.com will still be blocked
-	whitelist=(
-		"^mixpanel.com$"
-		"^segment.com$"
-		"^airbrake.io$"
-		"^www.inmobi.com$"
-	)
+            sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
+    fi
+    # whitelist exactly the hostname pattern here. "^mixpanel.com$" will
+    # whitelist traffic to mixpanel.com, but lines such as
+    # api.mixpanel.com will still be blocked
+    whitelist=(
+        "^mixpanel.com$"
+        "^www.mixpanel.com$"
+        "^segment.com$"
+        "^airbrake.io$"
+        "^www.inmobi.com$"
+    )
 
-	adservers="
-		https://adaway.org/hosts.txt
-		https://hosts-file.net/ad_servers.txt
-		https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
-	"
-	newhosts=$(mktemp)
+    adservers="
+        https://adaway.org/hosts.txt
+        https://hosts-file.net/ad_servers.txt
+        https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
+    "
+    newhosts=$(mktemp)
 
-	# remove lines with localhost, we already take care of those
-	# make sure only lines redirecting to localhost are authorized
-	# convert from that BS that windows calls EOLs to proper '\n's
-	# strip inline comments
-	# replace space following ipaddr with a tab
-	# remove duplicate lines
-	curl ${adservers}  \
-		| grep -v localhost \
-		| sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
-		| dos2unix \
-		| sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1	/' \
-		| awk '!seen[$0]++' \
-		> "${newhosts}"
-	# remove whitelisted lines
-	for w in ${whitelist[@]}; do
-		pattern="$(sed 's/\^/^127.0.0.1	/' <<< "${w}")"
-		sed -i "/${pattern}/d"  "${newhosts}"
-	done
-	cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
-	cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
-	sudo chown "root:${GROUP}" /etc/hosts
-	sudo chmod 644 /etc/hosts
-	rm "${newhosts}"
+    # remove lines with localhost, we already take care of those
+    # make sure only lines redirecting to localhost are authorized
+    # convert from that BS that windows calls EOLs to proper '\n's
+    # strip inline comments and replace tabs with spaces
+    # replace space following ipaddr with a tab
+    # remove duplicate lines
+    curl ${adservers}  \
+        | grep -v localhost \
+        | sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
+        | dos2unix \
+        | sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1    /;s/\t/    /g' \
+        | awk '!seen[$0]++' \
+        > "${newhosts}"
+    # remove whitelisted lines
+    for w in ${whitelist[@]}; do
+        pattern="$(sed 's/\^/^127.0.0.1    /' <<< "${w}")"
+        sed -i "/${pattern}/d"  "${newhosts}"
+    done
+    cat /etc/hosts.orig | sudo tee /etc/hosts > /dev/null
+    cat "${newhosts}" | sudo tee -a /etc/hosts > /dev/null
+    sudo chown "root:${GROUP}" /etc/hosts
+    sudo chmod 644 /etc/hosts
+    rm "${newhosts}"
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
