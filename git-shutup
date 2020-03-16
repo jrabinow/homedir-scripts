@@ -1,5 +1,0 @@
-#!/bin/bash
-git config --global push.default matching
-
-git config --global branch.master.remote origin
-git config --global branch.master.merge refs/heads/master
