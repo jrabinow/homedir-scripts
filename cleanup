@@ -13,7 +13,6 @@ function main ()
         .adobe
         .agdb
         .AMD
-        .android
         .ansible
         .ansible_async
         .appletviewer
@@ -25,10 +24,12 @@ function main ()
         .CFUserTextEncoding
         .cgobanrc
         .cinnamon
+        .cups
         .dbus
         .ddd
         .dreamchess
         .DS_Store
+        .docker
         .dvdcss
         .eclipse
         .elinks
@@ -73,6 +74,8 @@ function main ()
         .mission-control
         .mplayer
         .muttator
+        .mysqlsh
+        .m2
         .nautilus
         .nedit
         .nemo
@@ -83,6 +86,7 @@ function main ()
         .octave_hist
         .oracle_jre_usage
         .osquery
+        .packer.d
         .parallel
         .pdfedit
         .pEp
@@ -136,8 +140,10 @@ function main ()
         .pEp_management.db
         .pEp_management.db-shm
         .pEp_management.db-wal
+        .pspg_history
         .pulse-cookie
         .recently-used
+        .rediscli_history
         .rnd
         .scala_history
         .scm.sqlite
@@ -226,7 +232,12 @@ function main ()
         wmlock-*
         www-vmtouch-*
         www_vmtouch_db_cache.json
+        com.apple.launchd.*
     )
+
+    # separately to avoid any array issues
+    #rm -rf $HOME/.android/!(avd)
+
     for d in "${homedir_dirs[@]}"; do
         rm -rf "$HOME/${d}"
     done
