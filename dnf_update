@@ -22,6 +22,7 @@ EOF
     sudo port upgrade outdated
     sudo port uninstall leaves
     sudo port uninstall inactive
+    sudo port uninstall rleaves
     sudo port reclaim
 }
 

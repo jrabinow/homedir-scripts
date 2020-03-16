@@ -121,12 +121,11 @@ EOF
         esac
     done
 
-    if [ $# -ge 1 ]; then
+    if [ $# -ge 1 ] || [ -z "${GITARGS}" ]; then
         GITARGS="${*:-pull}"
     fi
 
     readonly FORCE_DIRTY
-
     readonly GITARGS
 
     cd "${JOBOX_DIR}"
