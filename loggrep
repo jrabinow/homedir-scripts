@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -e -u
+set -o pipefail
+
+# write some cool doc here
+function usage () {
+    cat << EOF
+Usage: $(basename $0) [OPTION]... QUERY
+Options: -h: show this help dialog
+         --start YYYY-MM-DDTHH:mm:ss.000Z
+         --end   YYYY-MM-DDTHH:mm:ss.000Z
+EOF
+}
+
+function dateparam_to_date ()
+{
+    local param="${1}"; shift
+    local datefmt="%Y-%m-%dT%T.000Z"
+    date -u +"${datefmt}" -d "${param}"
+}
+
+function main ()
+{
+    # timestamps in range object are UTC
+    local start=$(dateparam_to_date '24 hours ago')
+    local end=$(dateparam_to_date 'now')
+    readonly DOMAIN='https://elasticsearch_endpoint.com/_search'
+
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h)    # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    start)
+                        nextarg_pos=$((OPTIND))
+                        start=$(dateparam_to_date "${!nextarg_pos}"); shift
+                        ;;
+                    end)
+                        nextarg_pos=$((OPTIND))
+                        end=$(dateparam_to_date "${!nextarg_pos}"); shift
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                echo "Unknown option, exiting now" >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ "${1:-}" == '--' ]] && shift
+    local search_term="${@}"
+
+    curl -s "${DOMAIN}" -H 'Content-Type: application/json' --data "{
+        \"size\": 500,
+        \"sort\": [{
+            \"@timestamp\": {
+                \"order\": \"asc\"
+            }
+        }],
+        \"query\": {
+            \"bool\": {
+                \"must\": [{
+                    \"query_string\": {
+                        \"query\":\"\\\"${search_term}\\\"\",
+                        \"analyze_wildcard\": false,
+                        \"fields\": [\"log_message\", \"_id\"]
+                    }}, {
+                        \"range\": {
+                            \"@timestamp\": {
+                                \"gte\": \"${start}\",
+                                \"lte\": \"${end}\"
+                            }
+                        }
+                    }]
+                }
+            }
+    }"|jq -r '.hits.hits[]._source|if (.message | length) != 0 then .message else .log_message end'
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
