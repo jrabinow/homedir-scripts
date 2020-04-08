@@ -254,7 +254,7 @@ function main ()
         rm -rf "$HOME/.local/share/${d}"
     done
     for d in "${tmpfiles[@]}"; do
-        sudo rm -rf /tmp/${tmpfiles}
+        rm -rf /tmp/${tmpfiles} 2>/dev/null
     done
     rm -f $(locate recently-used.xbel)
     #locate '~' | grep '~$' | xargs -I% mv % ~/references/recovered_files
