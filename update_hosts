@@ -3,7 +3,7 @@
 # download host lists and apply them to /etc/hosts
 # this should be sufficient to kill ads in both spotify and google play
 
-function main ()
+function enable ()
 {
     case $(uname) in
         Linux)
@@ -40,7 +40,6 @@ EOM
 
     adservers="
         https://adaway.org/hosts.txt
-        https://hosts-file.net/ad_servers.txt
         https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
     "
     newhosts=$(mktemp)
@@ -49,7 +48,7 @@ EOM
     # make sure only lines redirecting to localhost are authorized
     # convert from that BS that windows calls EOLs to proper '\n's
     # strip inline comments and replace tabs with spaces
-    # replace space following ipaddr with a tab
+    # replace space following ipaddr with a tab for consistency
     # remove duplicate lines
     curl ${adservers}  \
         | grep -v localhost \
@@ -68,6 +67,74 @@ EOM
     sudo chown "root:${GROUP}" /etc/hosts
     sudo chmod 644 /etc/hosts
     rm "${newhosts}"
+}
+
+
+function disable ()
+{
+    sudo cp /etc/hosts{.orig,}
+}
+
+
+function usage ()
+{
+    cat << EOM
+Usage: $0 [--enable|--disable]
+    --enable: enable ad-blocking
+    --disable: disable ad-blocking
+EOM
+}
+
+
+function main ()
+{
+    local action="${1##--}"
+    test -z $action && action=enable
+
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h)  # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    enable)
+                        action=enable
+                        ;;
+                    disable)
+                        action=disable
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ "${1:-}" == '--' ]] && shift
+
+    case "${action}" in
+        enable)
+            enable
+            ;;
+        disable)
+            disable
+            ;;
+        *)
+            printf "programming error: missing case statement\n" >&2
+            ;;
+    esac
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
