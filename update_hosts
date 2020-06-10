@@ -36,6 +36,7 @@ EOM
         "^segment.com$"
         "^airbrake.io$"
         "^www.inmobi.com$"
+        "^open.spotify.com$"
     )
 
     adservers="
