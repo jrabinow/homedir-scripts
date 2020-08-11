@@ -1,8 +1,13 @@
 #!/bin/bash
 
+set -e -u
+set -o pipefail
+
 function main ()
 {
 	dirname=$(mktemp -d);
+    echo "${dirname}"
+    read -p "ready to continue? "
 	sudo mount -t tmpfs tmpfs "${dirname}";
 	cd "${dirname}";
 	#awk "/^function/,/^}/" ~/.bashrc > "${dirname}/.bashrc";
