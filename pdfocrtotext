@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -e -u
+set -o pipefail
+
+# Sometimes poppler `pdftotext` binary has issues. We can use OCR to extract
+# text from pdfs
+
+# if you already have imagemagick installed, this here is also a viable solution
+# http://kiirani.com/2013/03/22/tesseract-pdf.html
+
+function usage ()
+{
+    cat << EOF
+Usage: $(basename $0) [OPTION]... PDF_FILE
+Options: --help, -h: show this help dialog
+         --lang, -l: set PDF language for tesseract (see \`tesseract --list-langs\`)
+
+EOF
+}
+
+function main ()
+{
+    local lang=eng
+
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h)  # help message
+                usage
+                exit 0
+                ;;
+            l)
+                lang="${OPTARG}"
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    lang)
+                        lang="${OPTIND}"
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ "${1:-}" == '--' ]] && shift
+
+    pdf_file=$1; shift
+
+    readonly local pdf_file_name=$(basename "${pdf_file}" .pdf)
+
+    if [[ -z $(which pdftoppm) ]]; then
+        printf "pdftoppm not found; need to install poppler https://en.wikipedia.org/wiki/Poppler_(software)\n"
+        exit 1
+    fi
+    if [[ -z $(which tesseract) ]]; then
+        printf "tesseract not found; need to install tesseract and the language pack your pdf is in https://en.wikipedia.org/wiki/Tesseract_(software)\n"
+        exit 1
+    fi
+    tempdir="$(mktemp -d)"
+    pdftoppm -png "${pdf_file}" "${tempdir}/pdf_page"
+    cd "${tempdir}"
+    for page in pdf_page-*.png; do
+        printf "processing page ${page}\n"
+        tesseract -l "${lang}" "${page}" "text-${page}"
+    done
+    cd - 2>/dev/null
+    cat "${tempdir}"/text-*.txt > "${pdf_file_name}.txt"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
