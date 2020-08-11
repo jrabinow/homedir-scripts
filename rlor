@@ -1,11 +1,11 @@
-#!/usr/bin/expect -f
+#!/usr/bin/expect -Df
 
 # Shamelessly stolen from Jim Meyering
 # Usage: rlor HOSTNAME
 # Works like "ssh -lroot HOSTNAME", but sets up your environment
 # on the remote host and preserves shell history across invocations.
 #
-# Requirement: an existing ~/.root-env/ directory with the state
+# Requirement: an existing ~/.config/root-env/ directory with the state
 # that you expect to use, and that serves as the repository for
 # saved shell history.
 
@@ -43,7 +43,7 @@ if {[string match "*/zsh" $shell]} {
 set remote_dir ".$env(USER)"
 
 # Copy our start-up files into that directory:
-system "rsync -a --no-owner --no-group --copy-links ~/.root-env/ -e 'ssh $default_args' $user@$host:$remote_dir"
+system "rsync -a --no-owner --no-group --copy-links ~/.config/root-env/ -e 'ssh $default_args' $user@$host:$remote_dir"
 
 # Start interactive session, making that directory $HOME:
 if { $ssh_client == "mosh" } {
