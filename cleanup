@@ -64,6 +64,7 @@ function main ()
         .lftp
         .links
         .links2
+        .lldb
         .lnav
         .macports
         .macromedia
@@ -90,6 +91,7 @@ function main ()
         .parallel
         .pdfedit
         .pEp
+        .pex
         .pip
         .pki
         .plotly
@@ -110,6 +112,7 @@ function main ()
         .themes
         .thumbnails
         .tmp
+        .tooling
         .Trash
         .update-notifier
         .vidalia
@@ -170,6 +173,7 @@ function main ()
         cinnamon-session
         clipit
         configstore
+        coc/extensions/coc-java-data
         DjVuLibre
         enchant
         eog
@@ -207,6 +211,7 @@ function main ()
         yelp
     )
     config_files=(
+        coc/memos.json
         QtProject.conf
         Trolltech.conf
         user-dirs.dirs
