@@ -77,6 +77,7 @@ function main ()
         .muttator
         .mysqlsh
         .m2
+        .nano
         .nautilus
         .nedit
         .nemo
