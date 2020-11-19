@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 usage = """
 mpris-remote, written by Nick Welch <nick@incise.org> in the year 2008.
@@ -63,7 +63,7 @@ NOTES:
   starts them at one.  (track "1/2" being the last track would make no sense.)
 """
 
-import os, sys, re, time, urllib2, dbus
+import os, sys, re, time, urllib, dbus
 
 org_mpris_re = re.compile('^org\.mpris\.((MediaPlayer2\.)?([^.]+))$')
 
@@ -74,7 +74,7 @@ def possible_names():
 def get_player():
     names = possible_names()
     if not names:
-        print >>sys.stderr, "No MPRIS-compliant player found running."
+        print("No MPRIS-compliant player found running.", file=sys.stderr)
         raise SystemExit(1)
     return org_mpris_re.match(names[0]).group(1)
 
@@ -89,18 +89,18 @@ try:
     player_obj = bus.get_object(
         'org.mpris.{}'.format(player_name), '/org/mpris/MediaPlayer2'
     )
-except dbus.exceptions.DBusException, e:
+except dbus.exceptions.DBusException as e:
     if e.get_dbus_name() != 'org.freedesktop.DBus.Error.ServiceUnknown':
         raise
 
-    print >>sys.stderr, 'Player "%s" was not found to be running.' % player_name
+    print('Player "{}" was not found to be running.'.format(player_name), file=sys.stderr)
     names = possible_names()
     if names:
-        print >>sys.stderr, "But the following players were found to be running:"
+        print("But the following players were found to be running:", file=sys.stderr)
         for n in names:
-            print >>sys.stderr, "    %s" % n.replace("org.mpris.", "")
-    print >>sys.stderr, 'If you meant to use one of those players, ' \
-                        'set $MPRIS_REMOTE_PLAYER accordingly.'
+            print("    {}".format(n.replace("org.mpris.", "")), file=sys.stderr)
+    print('If you meant to use one of those players, ' \
+                        'set $MPRIS_REMOTE_PLAYER accordingly.', file=sys.stderr)
     raise SystemExit(1)
 
 root = dbus.Interface(player_obj, dbus_interface='org.mpris.MediaPlayer2')
@@ -127,7 +127,7 @@ class is_valid_corn_uri(object):
     type_desc = 'a valid URI (media file, playlist file, stream URI, or directory)'
     def __init__(self, arg):
         if arg.startswith('file://'):
-            arg = urllib2.unquote(arg.partition('file://')[2])
+            arg = urllib.parse.unquote(arg.partition('file://')[2])
 
         # arbitrary uri, don't wanna hardcode possible protocols
         if re.match(r'\w+://.*', arg):
@@ -149,9 +149,9 @@ def explain_numargs(*forms):
         def new(self, *args):
             if len(args) not in forms:
                 s = ' or '.join(map(str, forms))
-                raise YouDidItWrong("%s takes %s argument(s)." % (meth.func_name, s))
+                raise YouDidItWrong("%s takes %s argument(s)." % (meth.__qualname__, s))
             return meth(self, *args)
-        new.func_name = meth.func_name
+        new.__qualname__ = meth.__qualname__
         return new
     return wrapper
 
@@ -162,9 +162,9 @@ def explain_argtype(i, typeclass, optional=False):
                 try:
                     typeclass(args[i])
                 except:
-                    raise YouDidItWrong("argument %d to %s must be %s." % (i+1, meth.func_name, typeclass.type_desc))
+                    raise YouDidItWrong("argument %d to %s must be %s." % (i+1, meth.__qualname__, typeclass.type_desc))
             return meth(self, *args)
-        new.func_name = meth.func_name
+        new.__qualname__ = meth.__qualname__
         return new
     return wrapper
 
@@ -213,7 +213,7 @@ class Commander(object):
         if vol is not None:
             player.VolumeSet(int(vol))
         else:
-            print player.VolumeGet()
+            print(player.VolumeGet())
 
     @explain_numargs(0)
     def position(self):
@@ -351,24 +351,24 @@ def print_nicey_nice():
         sys.stdout.write('\n')
 
     if 'artist' in meta:
-        print '  artist:', meta['artist']
+        print('  artist:', meta['artist'])
     if 'title' in meta:
-        print '  title:', meta['title']
+        print('  title:', meta['title'])
     if 'album' in meta:
-        print '  album:', meta['album']
+        print('  album:', meta['album'])
 
     if have_status:
-        print '[repeat %s] [random %s] [loop %s]' % (
+        print('[repeat {}] [random {}] [loop {}]'.format(
             "on" if status[2] else "off",
             "on" if status[1] else "off",
-            "on" if status[3] else "off",
-        )
+            "on" if status[3] else "off"
+        ))
 
 def main():
     if len(sys.argv) == 1:
         print_nicey_nice()
     elif sys.argv[1] in ('-h', '--help', '-?'):
-        print usage
+        print(usage)
     else:
         method_name = sys.argv[1]
         args = sys.argv[2:]
@@ -380,11 +380,11 @@ def main():
 
         try:
             getattr(cmdr(), method_name)(*args)
-        except YouDidItWrong, e:
-            print >>sys.stderr, e
+        except YouDidItWrong as e:
+            print(e, file=sys.stderr)
             raise SystemExit(1)
-        except dbus.exceptions.DBusException, e:
-            print >>sys.stderr, e
+        except dbus.exceptions.DBusException as e:
+            print(e, file=sys.stderr)
             raise SystemExit(2)
         except KeyboardInterrupt:
             raise SystemExit(3)
