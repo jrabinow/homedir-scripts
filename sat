@@ -30,15 +30,15 @@ EOF
     shift $((OPTIND - 1))
     [[ "${1:-}" == '--' ]] && shift
 
-    paused=$(grep -m1 "^#127.0.0.1 spclient.wg.spotify.com$" /etc/hosts || echo "")
-    unpaused=$(grep -m1 "^127.0.0.1 spclient.wg.spotify.com$" /etc/hosts || echo "")
+    paused=$(grep -E -m1 "^#127.0.0.1\s*spclient.wg.spotify.com$" /etc/hosts || echo "")
+    unpaused=$(grep -E -m1 "^127.0.0.1\s*spclient.wg.spotify.com$" /etc/hosts || echo "")
     if [[ ! -z "${paused}" ]]; then
-        sed -i 's/^#127.0.0.1 spclient.wg.spotify.com$/127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
+        sed -i 's/^#127.0.0.1\s*spclient.wg.spotify.com$/127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
         if "${display}"; then
             printf "enabled ad-blocking\n"
         fi
     elif [[ ! -z "${unpaused}" ]]; then
-        sed -i 's/^127.0.0.1 spclient.wg.spotify.com$/#127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
+        sed -i 's/^127.0.0.1\s*spclient.wg.spotify.com$/#127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
         if "${display}"; then
             printf "disabled ad-blocking\n"
         fi
