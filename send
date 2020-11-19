@@ -29,7 +29,7 @@ function main ()
 			while [ $# != 0 ]; do
 				file="$1"; shift
 				echo "Sending file ${file}..."
-				ncat -vlp$portnum -w1 < "${file}"
+				nc -vlp$portnum -w1 < "${file}"
 			done
 			;;
 		"recv" )
