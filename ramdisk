@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -e -u
+set -o pipefail
+
+function main ()
+{
+    local dirname=$(mktemp -d);
+    sudo chown "${USER}:${USER}" "${dirname}"
+    chmod 700 "${dirname}"
+    echo $dirname
+    read -p "ready to continue? "
+    sudo mount -t tmpfs tmpfs "${dirname}";
+    cd "${dirname}";
+    #awk "/^function/,/^}/" ~/.bashrc > "${dirname}/.bashrc";
+    #awk "/^alias/,/'\''$/" ~/.bashrc >> "${dirname}/.bashrc";
+    #awk "/dircolors/,/fi$/" ~/.bashrc >> "${dirname}/.bashrc";
+    local COPYFILES=(
+        .bashrc
+        .config/bash
+        .inputrc
+        .profile
+        .tmux.conf
+        .vim
+        .vimrc
+    )
+    for f in "${COPYFILES[@]}"; do
+        dir="${f%/*}"
+        file="${f##*/}"
+        test -e "~/${f}" && \
+            mkdir -p "${dirname}/${dir}" && \
+            cp -rv "${f}" "${dirname}/${dir}/"
+    done
+    ln -s ~/bin "${dirname}";
+    HOME="${dirname}" bash;
+    rm "${dirname}/bin"
+    find -P "${dirname}" -type f -print0 | xargs -r0 shred -zu;
+    cd -;
+    sudo rm -rf "${dirname}/*";
+    sudo umount "${dirname}";
+    rmdir "${dirname}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
