@@ -130,6 +130,7 @@ function main ()
         .emulator_console_auth_token
         .esd_auth
         .fixmyserver-homedir-write-test
+        .fonts.conf
         .gnuplot_history
         .gtk-bookmarks
         .history
@@ -162,8 +163,10 @@ function main ()
         .viminfo
         .wget-hsts
         .xfce4-session.verbose-log*
+        .Xresources
         .xsession
         .xsession-errors*
+        .xsettingsd
         .yarnrc
         .ypp_42
         .zcompdump
@@ -189,6 +192,7 @@ function main ()
         "google-chrome/Default/Local Storage"
         google-googletalkplugin
         gtk-2.0
+        gtk-3.0
         guvcview2
         htop
         ibus
@@ -200,8 +204,10 @@ function main ()
         menus
         nautilus
         octave
+        procps
         qvm-mru-filecopy
         Skype
+        "spotify/User Data"
         sqlitebrowser
         totem
         Thunar
@@ -212,15 +218,19 @@ function main ()
         yelp
     )
     config_files=(
-        coc/memos.json
         QtProject.conf
         Trolltech.conf
         user-dirs.dirs
         user-dirs.locale
     )
     localshare_dirs=(
+        gvfs-metadata
         lftp
+        nautilus
         nvim
+        tracker
+        vlc
+        xorg
     )
     tmpfiles=(
         com.apple.CoreSimulator.SimDevice.*
