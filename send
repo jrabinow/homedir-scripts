@@ -1,5 +1,17 @@
 #!/bin/bash
 
+function print_ip_addr ()
+{
+    case $(uname) in
+        Darwin)
+            ipconfig getifaddr en0
+            ;;
+        *)
+            ip addr show
+            ;;
+    esac
+}
+
 function main ()
 {
 	local portnum=9600
@@ -13,11 +25,11 @@ function main ()
 				echo "Usage: $progname filename1 [filename2 ...]" >&2
 				exit 0
 			fi
-			ifconfig wlp8s0 | grep -oE 'inet [0-9]{,3}(\.[0-9]{,3}){3}'
+            print_ip_addr
 			while [ $# != 0 ]; do
 				file="$1"; shift
 				echo "Sending file ${file}..."
-				nc -vlp$portnum -q1 < "${file}"
+				ncat -vlp$portnum -w1 < "${file}"
 			done
 			;;
 		"recv" )
