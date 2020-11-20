@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import argparse
 import collections
@@ -75,13 +75,13 @@ def parse_args():
 
 
 def groupby(fd, args):
-    group_sep = args.group_delimiter.decode('string_escape')
-    sep = args.separator.decode('string_escape')
+    group_sep = args.group_delimiter
+    sep = args.separator
     try:
         grouped = group_stream_by_column(
             fd,
             args.column_number,
-            delimiter=args.column_delimiter.decode('string_escape'),
+            delimiter=args.column_delimiter,
             filter_key=args.filter_key,
         )
     except Exception:
