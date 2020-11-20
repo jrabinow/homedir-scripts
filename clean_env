@@ -11,7 +11,7 @@ cd "$tmpdir"
 EOF
 
     env - HOME="$tmpdir" TERM="$TERM" bash --noprofile --rcfile "$tmprc"
-    rm -r "$tmpdir" "$tmprc"
+    rm -rf "$tmpdir" "$tmprc"
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
