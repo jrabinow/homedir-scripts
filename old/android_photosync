@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 readonly BACKUP_DIR="/home/$USER/Documents/Android/SDCard Backup"
 readonly APP_BACKUP_DIR="${BACKUP_DIR}/AppData"
