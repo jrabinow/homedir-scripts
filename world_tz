@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/bin/env bash -e
 
 # From https://www.facebook.com/groups/hack.of.the.day/permalink/1373649706016974/
 
