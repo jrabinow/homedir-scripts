@@ -31,7 +31,7 @@ function main ()
     ln -s ~/bin "${dirname}";
     HOME="${dirname}" bash;
     rm -f "${dirname}/bin"
-    find -P "${dirname}" -type f -print0 | xargs -r0 shred -zfu;
+    find -P "${dirname}" -type f -print0 | xargs -r0 shred -zvfu
     cd -;
     sudo rm -rf "${dirname}/*";
     sudo umount "${dirname}";

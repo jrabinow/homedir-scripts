@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+set -eu
+set -o pipefail
+
 function print_ip_addr ()
 {
     case $(uname) in
@@ -12,43 +15,53 @@ function print_ip_addr ()
     esac
 }
 
+function binary ()
+{
+    if command -v ncat >/dev/null 2>&1; then
+        printf 'ncat --%s-only ' "${progname}"
+    else
+        printf 'nc -w1'
+    fi
+}
+
 function main ()
 {
     local portnum=9600
     local file
     local ip_addr
-    local progname=$(basename $0)
-    
+    local progname
+
+    progname=$(basename "$0")
     case $progname in
         "send" )
             if [ $# == 0 ]; then
-                echo "Usage: $progname filename1 [filename2 ...]" >&2
+                printf 'Usage: %s filename1 [filename2 ...]\n' "${progname}" >&2
                 exit 0
             fi
             print_ip_addr
             while [ $# != 0 ]; do
-                file="$1"; shift
-                echo "Sending file ${file}..."
-                nc -vlp$portnum -w1 < "${file}"
+                file="${1}"; shift
+                printf 'Sending file %s...\n' "${file}"
+                $(binary) -vlp"${portnum}" < "${file}"
             done
             ;;
         "recv" )
             if [ $# == 0 ]; then
-                echo "Usage: $progname IP_Address filename1 [filename2 ...]" >&2
+                printf 'Usage: %s IP_Address filename1 [filename2 ...]\n' "${progname}"  >&2
                 exit 0
             fi
             ip_addr="$1"; shift
             while [ $# != 0 ]; do
                 file="$1"; shift
-                echo "Receiving file ${file}..."
+                printf 'Receiving file %s...\n' "${file}"
                 if [ -e "${file}" ]; then
-                    echo "ERROR: file ${file} already exists" >&2
-                    read -n1 -p "[A]bort, (O)verwrite, (R)ename, (E)xit: "
-                    echo ''
+                    printf 'ERROR: file %s already exists\n' "${file}" >&2
+                    read -rn1 -p '[A]bort, (O)verwrite, (R)ename, (E)xit: '
+                    printf '\n'
                     case "${REPLY}" in
                         [rR])
                             while [ -e "${file}" ]; do
-                                read -p "Enter new name for file: "
+                                read -rp 'Enter new name for file: '
                                 file="${REPLY}"
                             done
                             ;;
@@ -56,18 +69,18 @@ function main ()
                             exit 0
                             ;;
                         [oO])
-                            echo "Overwriting file ${file} with new version." >&2
+                            printf 'Overwriting file %s with new version.\n' "${file}" >&2
                             ;;
                         *)
                             continue
                             ;;
                     esac
                 fi
-                nc -v "$ip_addr" "$portnum" > "${file}"
+                $(binary) -v "${ip_addr}" "${portnum}" > "${file}"
             done
             ;;
         *)
-            echo "Script called with incorrect name"
+            printf 'Script called with incorrect name\n'
     esac
 }
 
