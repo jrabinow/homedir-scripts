@@ -163,8 +163,6 @@ function main ()
         .viminfo
         .wget-hsts
         .xfce4-session.verbose-log*
-        .Xresources
-        .xsession
         .xsession-errors*
         .xsettingsd
         .yarnrc
