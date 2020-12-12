@@ -104,6 +104,7 @@ function main ()
         .qt
         .recently-used.xbel
         .redhat
+        .repoconfig
         .scala_history
         .sqlite_history
         .sunstudio
@@ -132,6 +133,7 @@ function main ()
         .fixmyserver-homedir-write-test
         .fonts.conf
         .gnuplot_history
+        .google-cookie
         .gtk-bookmarks
         .history
         .hivehistory
@@ -151,6 +153,7 @@ function main ()
         .pulse-cookie
         .recently-used
         .rediscli_history
+        .repo_.gitconfig.json
         .rnd
         .scala_history
         .scm.sqlite
