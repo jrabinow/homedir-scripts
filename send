@@ -5,12 +5,13 @@ set -o pipefail
 
 function print_ip_addr ()
 {
+    iface="$(route get example.com|awk '/interface: / {print $2; }')"
     case $(uname) in
         Darwin)
-            ipconfig getifaddr en0
+            ipconfig getifaddr "${iface}"
             ;;
         *)
-            ip addr show
+            ip addr show "${iface}"
             ;;
     esac
 }
