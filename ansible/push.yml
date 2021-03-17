@@ -1,8 +1,0 @@
----
-- name: push data to remote server
-  hosts: ec2
-  tasks:
-    - stat: path="${{ dest }}"
-      register: st
-    - copy: src="{{ src }}" dest="{{ dest }}" owner=ubuntu group=ubuntu
-      when: not st.stat.exists

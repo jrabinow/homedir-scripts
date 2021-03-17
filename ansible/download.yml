@@ -1,6 +1,0 @@
----
-- name: download link
-  hosts: ec2
-  tasks:
-   - name: download
-     shell: aria2c '{{ download_url }}'
