@@ -1,7 +1,0 @@
----
-- name: Install software
-  hosts: ec2
-  become: true
-  tasks:
-   - name: Install package
-     apt: name='{{ package }}' state=present update-cache=yes
