@@ -5,6 +5,9 @@
 # $ cleanup
 # $ cleanup -b
 
+set -e -u
+set -o pipefail
+
 function main ()
 {
     homedir_dirs=(
@@ -24,6 +27,50 @@ function main ()
         .cache
         .CFUserTextEncoding
         .cgobanrc
+        .config/abrt
+        .config/"chromium/Default/Local Storage"
+        .config/cinnamon-session
+        .config/clipit
+        .config/configstore
+        .config/coc/extensions/coc-java-data
+        .config/DjVuLibre
+        .config/enchant
+        .config/eog
+        .config/evince
+        .config/evolution
+        .config/filezilla
+        .config/gedit
+        .config/gnome-disk-utility
+        .config/gnome-initial-setup-done
+        .config/gnome-session
+        .config/goa-1.0
+        .config/"google-chrome/Default/Local Storage"
+        .config/google-googletalkplugin
+        .config/gtk-2.0
+        .config/gtk-3.0
+        .config/guvcview2
+        .config/htop
+        .config/ibus
+        .config/imsettings
+        .config/kazam
+        .config/lftp
+        .config/libreoffice
+        .config/libvirt
+        .config/menus
+        .config/nautilus
+        .config/octave
+        .config/procps
+        .config/qvm-mru-filecopy
+        .config/Skype
+        .config/"spotify/User Data"
+        .config/sqlitebrowser
+        .config/totem
+        .config/Thunar
+        .config/tracker
+        .config/viewnior
+        .config/wireshark
+        .config/xarchiver
+        .config/yelp
         .cinnamon
         .cups
         .dbus
@@ -67,6 +114,13 @@ function main ()
         .links2
         .lldb
         .lnav
+        .local/share/gvfs-metadata
+        .local/share/lftp
+        .local/share/nautilus
+        .local/share/nvim
+        .local/share/tracker
+        .local/share/vlc
+        .local/share/xorg
         .macports
         .macromedia
         .matlab
@@ -130,6 +184,10 @@ function main ()
         .ICEauthority
         .aspell*
         .babel.json
+        .config/QtProject.conf
+        .config/Trolltech.conf
+        .config/user-dirs.dirs
+        .config/user-dirs.locale
         .cuda-gdbinit
         .emulator_console_auth_token
         .esd_auth
@@ -176,67 +234,6 @@ function main ()
         .ypp_42
         .zcompdump
     )
-    config_dirs=(
-        abrt
-        "chromium/Default/Local Storage"
-        cinnamon-session
-        clipit
-        configstore
-        coc/extensions/coc-java-data
-        DjVuLibre
-        enchant
-        eog
-        evince
-        evolution
-        filezilla
-        gedit
-        gnome-disk-utility
-        gnome-initial-setup-done
-        gnome-session
-        goa-1.0
-        "google-chrome/Default/Local Storage"
-        google-googletalkplugin
-        gtk-2.0
-        gtk-3.0
-        guvcview2
-        htop
-        ibus
-        imsettings
-        kazam
-        lftp
-        libreoffice
-        libvirt
-        menus
-        nautilus
-        octave
-        procps
-        qvm-mru-filecopy
-        Skype
-        "spotify/User Data"
-        sqlitebrowser
-        totem
-        Thunar
-        tracker
-        viewnior
-        wireshark
-        xarchiver
-        yelp
-    )
-    config_files=(
-        QtProject.conf
-        Trolltech.conf
-        user-dirs.dirs
-        user-dirs.locale
-    )
-    localshare_dirs=(
-        gvfs-metadata
-        lftp
-        nautilus
-        nvim
-        tracker
-        vlc
-        xorg
-    )
     tmpfiles=(
         com.apple.CoreSimulator.SimDevice.*
         com.apple.launchd.*
@@ -261,51 +258,51 @@ function main ()
     #rm -rf $HOME/.android/!(avd)
 
     for d in "${homedir_dirs[@]}"; do
-        rm -rf "$HOME/${d}"
+        rm -rf "$HOME/${d:?}"
     done
     for f in "${homedir_files[@]}"; do
         rm -f "$HOME/${f}"
     done
-    for d in "${config_dirs[@]}"; do
-        rm -rf "$HOME/.config/${d}"
-    done
-    for f in "${config_files[@]}"; do
-        rm -f "$HOME/.config/${f}"
-    done
-    for d in "${localshare_dirs[@]}"; do
-        rm -rf "$HOME/.local/share/${d}"
-    done
     for d in "${tmpfiles[@]}"; do
-        rm -rf /tmp/${tmpfiles} 2>/dev/null
+        # shellcheck disable=SC2086
+        rm -rf /tmp/${d} 2>/dev/null
     done
-    rm -f $(locate recently-used.xbel)
-    #locate '~' | grep '~$' | xargs -I% mv % ~/references/recovered_files
+    LOCATE=$( [[ $(uname) == Darwin ]] && echo slocate||echo locate)
+    # shellcheck disable=SC2046
+    ${LOCATE} recently-used.xbel |xargs rm -f
 
-    # firefox trash
-    cd $HOME/.mozilla 2>/dev/null
-    rmdir extensions 2>/dev/null
-    cd firefox 2>/dev/null
-    for profile in $(ls -d *.default 2>/dev/null)
-    do
-      cd $profile
-      rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
-      rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
-      cd ..
-    done
+    if [ -d ~/.mozilla ]; then
+        firefox_cleanup
+    fi
 
     # clean up all docker shit
-    if [ ! -z $(which docker 2>/dev/null) ]; then
-      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /etc:/etc spotify/docker-gc
+    if [ -n "$(which docker 2>/dev/null)" ]; then
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /etc:/etc spotify/docker-gc 2>/dev/null || true
     fi
-    if [ $# -eq 1 ] && [ $1 == "-b" ]; then
+    if [ $# -eq 1 ] && [ "${1}" == "-b" ]; then
       bleachbit_func
     fi
     root_func
 }
 
+# firefox trash
+function firefox_cleanup ()
+{
+    cd ~/.mozilla 2>/dev/null
+    rmdir extensions 2>/dev/null
+    cd firefox 2>/dev/null
+    for profile in $(ls -d *.default 2>/dev/null)
+    do
+      cd "${profile}"
+      rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
+      rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
+      cd ..
+    done
+}
+
 function bleachbit_func ()
 {
-    if [ ! -z $(which bleachbit 2>/dev/null) ]; then
+    if [ -n "$(which bleachbit 2>/dev/null)" ]; then
         bleachbit  -c \
             adobe_reader.cache \
             adobe_reader.mru \
