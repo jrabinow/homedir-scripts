@@ -9,6 +9,7 @@ function main ()
 {
     homedir_dirs=(
         .AbiSuite
+        .Tribler
         .abrt
         .adobe
         .agdb
@@ -110,6 +111,7 @@ function main ()
         .sunstudio
         .swt
         .terraform.d
+        .texlive2020
         .texmf-var
         .themes
         .thumbnails
@@ -127,6 +129,7 @@ function main ()
         .AndroidStudio2.0/config/options/usage.statistics.xml
         .ICEauthority
         .aspell*
+        .babel.json
         .cuda-gdbinit
         .emulator_console_auth_token
         .esd_auth
@@ -162,6 +165,7 @@ function main ()
         .sqlite_history
         .sudo_as_admin_successful
         .tilp
+        .v8flags*
         .vim/.netrwhist
         .viminfo
         .wget-hsts
