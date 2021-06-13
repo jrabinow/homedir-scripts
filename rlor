@@ -43,7 +43,7 @@ if {[string match "*/zsh" $shell]} {
 set remote_dir ".$env(USER)"
 
 # Copy our start-up files into that directory:
-system "rsync -a --no-owner --no-group --copy-links ~/.config/root-env/ -e 'ssh $default_args' $user@$host:$remote_dir"
+system "rsync -a --no-owner --exclude '.git' --no-group --copy-links ~/.config/root-env/ -e 'ssh $default_args' $user@$host:$remote_dir"
 
 # Start interactive session, making that directory $HOME:
 if { $ssh_client == "mosh" } {

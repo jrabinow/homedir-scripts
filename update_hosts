@@ -79,12 +79,9 @@ EOM
     # whitelist traffic to mixpanel.com, but lines such as
     # api.mixpanel.com will still be blocked
     whitelist=(
-        "^mixpanel.com$"
-        "^www.mixpanel.com$"
-        "^segment.com$"
-        "^airbrake.io$"
-        "^www.inmobi.com$"
         "^open.spotify.com$"
+        "^googlehosted.l.googleusercontent.com"
+        "^pi.pardot.com$"
     )
 
     adservers="
