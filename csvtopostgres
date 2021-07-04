@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -e -u
+set -o pipefail
+
+# write some cool doc here
+
+function usage ()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]... CSVFILE DBDIR
+Options: --help, -h: show this help dialog
+EOF
+}
+
+function main ()
+{
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h)  # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    foobar)
+                        foobar="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ "${1:-}" == '--' ]] && shift
+
+
+    csvfile="${1}"; shift
+    dbname="${1}"; shift
+
+    sed -i -E '1 s/ /_/g; 1 s/(.*)/\L\1/g' "${csvfile}"
+
+    virtualenv venv
+    source ./venv/bin/activate
+    pip install psycopg2 csvkit
+
+    mkdir -p "${dbname}"
+    pg_ctl -D "${dbname}" init
+    pg_ctl -D "${dbname}" -l "${dbname}/logfile" start
+    createuser default
+    createdb db
+
+    csvsql --db postgresql://default@localhost:5432/db --overwrite --insert "${csvfile}"
+    psql service=local
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
