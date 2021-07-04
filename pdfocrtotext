@@ -12,10 +12,9 @@ set -o pipefail
 function usage ()
 {
     cat << EOF
-Usage: $(basename $0) [OPTION]... PDF_FILE
+Usage: $(basename "$0") [OPTION]... PDF_FILE
 Options: --help, -h: show this help dialog
          --lang, -l: set PDF language for tesseract (see \`tesseract --list-langs\`)
-
 EOF
 }
 
@@ -23,7 +22,7 @@ function main ()
 {
     local lang=eng
 
-    while getopts "h-:" opt; do
+    while getopts "hl-:" opt; do
         case ${opt} in
             h)  # help message
                 usage
@@ -58,13 +57,14 @@ function main ()
 
     pdf_file=$1; shift
 
+    # shellcheck disable=SC2034
     readonly local pdf_file_name=$(basename "${pdf_file}" .pdf)
 
-    if [[ -z $(which pdftoppm) ]]; then
+    if command -v pdftoppm >/dev/null 2>&1; then
         printf "pdftoppm not found; need to install poppler https://en.wikipedia.org/wiki/Poppler_(software)\n"
         exit 1
     fi
-    if [[ -z $(which tesseract) ]]; then
+    if command -v tesseract >/dev/null 2>&1; then
         printf "tesseract not found; need to install tesseract and the language pack your pdf is in https://en.wikipedia.org/wiki/Tesseract_(software)\n"
         exit 1
     fi
@@ -72,7 +72,7 @@ function main ()
     pdftoppm -png "${pdf_file}" "${tempdir}/pdf_page"
     cd "${tempdir}"
     for page in pdf_page-*.png; do
-        printf "processing page ${page}\n"
+        printf "processing page %s\n" "${page}"
         tesseract -l "${lang}" "${page}" "text-${page}"
     done
     cd - 2>/dev/null

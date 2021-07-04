@@ -15,7 +15,7 @@ function trim_depend ()
 	while [ $# -ge 1 ]; do
 		pkglist="${pkglist} $1"; shift
 	done
-	cd /tmp
+	cd /tmp || return
 
 	for pkg in ${pkglist}; do
 		out="$(aptitude why "${pkg}")"
@@ -24,17 +24,16 @@ function trim_depend ()
 			echo 1
 			break
 		fi
-		read -p "Continue? [Y/n] "
+		read -rp "Continue? [Y/n] "
 		ret="$(tr '[:upper:]' '[:lower:]' <<< "${REPLY}"|cut -b1)"
-		if [ "${REPLY}" == 'y' ]; then
+		if [ "${ret}" == 'y' ]; then
 			deppkg="$(tail -1 <<< "${out}"|cut -b5-|awk '{print $1}')"
 			echo "${deppkg}"
-			apt download "${deppkg}"
-			if [ $? != 0 ]; then
+			if apt download "${deppkg}"; then
 				echo 1
 				break
 			fi
-			pkg_filename="$(ls ${deppkg}*.deb)"
+			pkg_filename="$(ls "${deppkg}"*.deb)"
 			dpkg-deb -R "${pkg_filename}" "${deppkg}"
 			for pkg2 in ${pkglist}; do
 				sed -ri "s/(Depends:.*)${pkg2},?/\1/g" "${deppkg}/DEBIAN/control"
@@ -60,10 +59,10 @@ function trim_depend ()
 function main ()
 {
 	if [ $# == '0' ]; then
-		echo "Usage: $(basename $0) packagename ..."
+		echo "Usage: $(basename "$0") packagename ..."
 		exit 1
 	fi
-	aptwhy=$(which aptitude)
+	aptwhy=$(command -v aptitude)
 	if [ -z "${aptwhy}" ]; then
 		sudo apt install aptitude
 	fi
