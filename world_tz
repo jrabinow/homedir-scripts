@@ -1,4 +1,7 @@
-#!/usr/bin/env bash -e
+#!/usr/bin/env bash
+
+set -eu
+set -o pipefail
 
 # From https://www.facebook.com/groups/hack.of.the.day/permalink/1373649706016974/
 
