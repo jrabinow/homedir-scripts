@@ -39,6 +39,7 @@ function main ()
         .config/evince
         .config/evolution
         .config/filezilla
+        .config/gconf
         .config/gedit
         .config/gnome-disk-utility
         .config/gnome-initial-setup-done
@@ -114,7 +115,11 @@ function main ()
         .links2
         .lldb
         .lnav
+        .local/share/flatpak
+        .local/share/gsettings-data-convert
+        .local/share/gstreamer-1.0
         .local/share/gvfs-metadata
+        .local/share/keyrings
         .local/share/lftp
         .local/share/nautilus
         .local/share/nvim
