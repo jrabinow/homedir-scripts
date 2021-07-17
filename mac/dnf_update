@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e -u -o pipefail
+
 # write some cool doc here
 
 function main () {
