@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -e -u
+set -o pipefail
+
+# write some cool doc here
+
+function usage ()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]... get PASTE_ID
+Usage: ${0##*/}" [OPTION]... post [FILE]
+Options: --help, -h: show this help dialog
+When posting, FILE argument is optional. If not provided, wwwpaste will read stdin
+EOF
+}
+
+function main ()
+{
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h)  # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ "${1:-}" == '--' ]] && shift
+
+    action="${1}"; shift
+
+    case "${action}" in
+        get)
+            id="${1##https://paste.rs/}"; shift
+            curl "https://paste.rs/${id}"
+            ;;
+        post)
+            if [ "${#}" -eq 0 ]; then
+                curl -X POST "https://paste.rs/" --data-binary @-
+            else
+                file="${1}"; shift
+                test -r "${file}" && curl -X POST "https://paste.rs/" --data-binary "@${file}"
+            fi
+            ;;
+        *)
+            usage
+            ;;
+    esac
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
