@@ -5,13 +5,15 @@ set -o pipefail
 
 function print_ip_addr ()
 {
-    iface="$(route get 192.168.1.1|awk '/interface: / {print $2; }')"
+    resolv_host=192.168.1.1
     case $(uname) in
         Darwin)
+            iface="$(route get "${resolv_host}"|awk '/interface: / {print $2; }')"
             ipconfig getifaddr "${iface}"
             ;;
         *)
-            ip addr show "${iface}"
+            iface="$(ip route get 192.168.1.1|awk '{print $3}')"
+            ip addr show "${iface}"|awk '/inet / {sub(/\/[0-9]+$/, "", $2); print $2}'
             ;;
     esac
 }
