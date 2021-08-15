@@ -11,6 +11,39 @@ Options: -t N: display top N commits
 EOF
 }
 
+function filestats()
+{
+    file="${1}"
+    shift
+
+    txt=$(git blame --date=format:%G --show-email "${file}")
+    numlines=$(wc -l <<< "${txt}")
+    echo "${numlines} total lines" | sed 's/^\s+//'
+    echo "----- YEARS -----"
+    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
+        | sed 's/^(.*\([0-9]\{4\}\).*)$/\1/' \
+        | sort \
+        | uniq -c \
+        | sort -r \
+        | awk '{print $2 " -> " $1 " lines"}'
+    echo "----- TOP AUTHORS -----"
+    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
+        | sed 's/^(\(<.*@.*>\).*)$/\1/' \
+        | sort \
+        | uniq -c \
+        | sort -r \
+        | awk '{print $2 " -> " $1 " lines"}' | column -t
+    echo "----- TOP DIFFS -----"
+    echo "${txt}" | cut -b-8 \
+        | sort \
+        | uniq -c \
+        | sort -rn \
+        | head -n"${TOP}" \
+        | awk '{print $2}' \
+        | grep -v '00000000' \
+        | xargs -n1 git log -n1 --pretty='%h %ai %aE		%s'
+}
+
 function main()
 {
     TOP=5
@@ -37,32 +70,10 @@ function main()
         exit 1
     fi
 
-    txt=$(git blame --date=format:%G --show-email "$@")
-    numlines=$(wc -l <<< "${txt}")
-    echo "${numlines} total lines" | sed 's/^\s+//'
-    echo "----- YEARS -----"
-    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
-        | sed 's/^(.*\([0-9]\{4\}\).*)$/\1/' \
-        | sort \
-        | uniq -c \
-        | sort -r \
-        | awk '{print $2 " -> " $1 " lines"}'
-    echo "----- TOP AUTHORS -----"
-    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
-        | sed 's/^(\(<.*@.*>\).*)$/\1/' \
-        | sort \
-        | uniq -c \
-        | sort -r \
-        | awk '{print $2 " -> " $1 " lines"}' | column -t
-    echo "----- TOP DIFFS -----"
-    echo "${txt}" | cut -b-8 \
-        | sort \
-        | uniq -c \
-        | sort -rn \
-        | head -n"${TOP}" \
-        | awk '{print $2}' \
-        | grep -v '00000000' \
-        | xargs -n1 git log -n1 --pretty='%h %ai %aE		%s'
+    for file in "${@}"; do
+        printf "============= %s =============\n" "${file}"
+        filestats "${file}"
+    done
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
