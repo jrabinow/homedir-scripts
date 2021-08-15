@@ -9,72 +9,72 @@
 
 # Usage: apt-trim-depend PKGNAME ...
 
-function trim_depend ()
+function trim_depend()
 {
-	pkglist="$1"; shift
-	while [ $# -ge 1 ]; do
-		pkglist="${pkglist} $1"; shift
-	done
-	cd /tmp || return
+    pkglist="$1"
+    shift
+    while [ $# -ge 1 ]; do
+        pkglist="${pkglist} $1"
+        shift
+    done
+    cd /tmp || return
 
-	for pkg in ${pkglist}; do
-		out="$(aptitude why "${pkg}")"
-		echo "${out}" >&2
-		if [ -z "${out}" ]; then
-			echo 1
-			break
-		fi
-		read -rp "Continue? [Y/n] "
-		ret="$(tr '[:upper:]' '[:lower:]' <<< "${REPLY}"|cut -b1)"
-		if [ "${ret}" == 'y' ]; then
-			deppkg="$(tail -1 <<< "${out}"|cut -b5-|awk '{print $1}')"
-			echo "${deppkg}"
-			if apt download "${deppkg}"; then
-				echo 1
-				break
-			fi
-			pkg_filename="$(ls "${deppkg}"*.deb)"
-			dpkg-deb -R "${pkg_filename}" "${deppkg}"
-			for pkg2 in ${pkglist}; do
-				sed -ri "s/(Depends:.*)${pkg2},?/\1/g" "${deppkg}/DEBIAN/control"
-			done
-			sed -i 's/Depends:\s*,/Depends: /;s/,\s*$//' "${deppkg}/DEBIAN/control"
-			echo -n "New depends line: " >&2
-			grep '^Depends' "${deppkg}/DEBIAN/control" >&2
-			rm "${pkg_filename}"
-			dpkg-deb -b "${deppkg}"
-			mv "${deppkg}.deb" "${pkg_filename}"
-			sudo dpkg -i "${pkg_filename}"
-			rm -rf "${deppkg}" "${pkg_filename}"
-			echo 0
-		else
-			echo "Aborting..."
-			echo 1
-			break
-		fi
-	done
+    for pkg in ${pkglist}; do
+        out="$(aptitude why "${pkg}")"
+        echo "${out}" >&2
+        if [ -z "${out}" ]; then
+            echo 1
+            break
+        fi
+        read -rp "Continue? [Y/n] "
+        ret="$(tr '[:upper:]' '[:lower:]' <<< "${REPLY}" | cut -b1)"
+        if [ "${ret}" == 'y' ]; then
+            deppkg="$(tail -1 <<< "${out}" | cut -b5- | awk '{print $1}')"
+            echo "${deppkg}"
+            if apt download "${deppkg}"; then
+                echo 1
+                break
+            fi
+            pkg_filename="$(ls "${deppkg}"*.deb)"
+            dpkg-deb -R "${pkg_filename}" "${deppkg}"
+            for pkg2 in ${pkglist}; do
+                sed -ri "s/(Depends:.*)${pkg2},?/\1/g" "${deppkg}/DEBIAN/control"
+            done
+            sed -i 's/Depends:\s*,/Depends: /;s/,\s*$//' "${deppkg}/DEBIAN/control"
+            echo -n "New depends line: " >&2
+            grep '^Depends' "${deppkg}/DEBIAN/control" >&2
+            rm "${pkg_filename}"
+            dpkg-deb -b "${deppkg}"
+            mv "${deppkg}.deb" "${pkg_filename}"
+            sudo dpkg -i "${pkg_filename}"
+            rm -rf "${deppkg}" "${pkg_filename}"
+            echo 0
+        else
+            echo "Aborting..."
+            echo 1
+            break
+        fi
+    done
 }
 
-
-function main ()
+function main()
 {
-	if [ $# == '0' ]; then
-		echo "Usage: $(basename "$0") packagename ..."
-		exit 1
-	fi
-	aptwhy=$(command -v aptitude)
-	if [ -z "${aptwhy}" ]; then
-		sudo apt install aptitude
-	fi
-	unset aptwhy
-	
-	trim_depend "$@"
-	exit
-	while [ "$(trim_depend "$@")" == 0 ]; do
-		echo "Looking for more dependencies"
-	done
-}
+    if [ $# == '0' ]; then
+        echo "Usage: ${0##*/} packagename ..."
+        exit 1
+    fi
+    aptwhy=$(command -v aptitude)
+    if [ -z "${aptwhy}" ]; then
+        sudo apt install aptitude
+    fi
+    unset aptwhy
 
+    trim_depend "$@"
+    exit
+    while [ "$(trim_depend "$@")" == 0 ]; do
+        echo "Looking for more dependencies"
+    done
+}
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
     main "$@"

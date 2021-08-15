@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-function main ()
+function main()
 {
     tmpdir="$(mktemp -d)"
     tmprc="$(mktemp)"

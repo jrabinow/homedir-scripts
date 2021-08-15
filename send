@@ -3,54 +3,55 @@
 set -eu
 set -o pipefail
 
-function print_ip_addr ()
+function print_ip_addr()
 {
     resolv_host=192.168.1.1
     case $(uname) in
         Darwin)
-            iface="$(route get "${resolv_host}"|awk '/interface: / {print $2; }')"
+            iface="$(route get "${resolv_host}" | awk '/interface: / {print $2; }')"
             ipconfig getifaddr "${iface}"
             ;;
         *)
-            iface="$(ip route get 192.168.1.1|awk '{print $3}')"
-            ip addr show "${iface}"|awk '/inet / {sub(/\/[0-9]+$/, "", $2); print $2}'
+            iface="$(ip route get 192.168.1.1 | awk '{print $3}')"
+            ip addr show "${iface}" | awk '/inet / {sub(/\/[0-9]+$/, "", $2); print $2}'
             ;;
     esac
 }
 
-function binary ()
+function binary()
 {
-    if command -v ncat >/dev/null 2>&1; then
+    if command -v ncat > /dev/null 2>&1; then
         printf 'ncat --%s-only ' "${progname}"
     else
         printf 'nc -w1'
     fi
 }
 
-function main ()
+function main()
 {
     local portnum=9600
     local file
     local ip_addr
     local progname
 
-    progname=$(basename "$0")
+    progname="${0##*/}"
     case $progname in
-        "send" )
+        "send")
             if [ $# == 0 ]; then
                 printf 'Usage: %s filename1 [filename2 ...]\n' "${progname}" >&2
                 exit 0
             fi
             print_ip_addr
             while [ $# != 0 ]; do
-                file="${1}"; shift
+                file="${1}"
+                shift
                 printf 'Sending file %s...\n' "${file}"
                 $(binary) -vlp"${portnum}" < "${file}"
             done
             ;;
-        "recv" )
+        "recv")
             if [ $# == 0 ]; then
-                printf 'Usage: %s IP_Address filename1 [filename2 ...]\n' "${progname}"  >&2
+                printf 'Usage: %s IP_Address filename1 [filename2 ...]\n' "${progname}" >&2
                 exit 0
             fi
             ip_addr="${1}"
@@ -86,9 +87,9 @@ function main ()
             ;;
         *)
             printf 'Script called with incorrect name\n'
+            ;;
     esac
 }
-
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
     main "$@"

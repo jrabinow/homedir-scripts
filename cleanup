@@ -8,7 +8,7 @@
 set -e -u
 set -o pipefail
 
-function main ()
+function main()
 {
     homedir_dirs=(
         .AbiSuite
@@ -25,6 +25,7 @@ function main ()
         .assaultcube_v1.104
         .audacity-data
         .cache
+        .cargo
         .CFUserTextEncoding
         .cgobanrc
         .config/abrt
@@ -270,45 +271,44 @@ function main ()
     done
     for d in "${tmpfiles[@]}"; do
         # shellcheck disable=SC2086
-        rm -rf /tmp/${d} 2>/dev/null
+        rm -rf /tmp/${d} 2> /dev/null
     done
-    LOCATE=$( [[ $(uname) == Darwin ]] && echo slocate||echo locate)
+    LOCATE=$([[ $(uname) == Darwin ]] && echo slocate || echo locate)
     # shellcheck disable=SC2046
-    ${LOCATE} recently-used.xbel |xargs rm -f
+    ${LOCATE} recently-used.xbel | xargs rm -f
 
     if [ -d ~/.mozilla ]; then
         firefox_cleanup
     fi
 
     # clean up all docker shit
-    if [ -n "$(which docker 2>/dev/null)" ]; then
-      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /etc:/etc spotify/docker-gc 2>/dev/null || true
+    if [ -n "$(which docker 2> /dev/null)" ]; then
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /etc:/etc spotify/docker-gc 2> /dev/null || true
     fi
     if [ $# -eq 1 ] && [ "${1}" == "-b" ]; then
-      bleachbit_func
+        bleachbit_func
     fi
     root_func
 }
 
 # firefox trash
-function firefox_cleanup ()
+function firefox_cleanup()
 {
-    cd ~/.mozilla 2>/dev/null
-    rmdir extensions 2>/dev/null
-    cd firefox 2>/dev/null
-    for profile in $(ls -d *.default 2>/dev/null)
-    do
-      cd "${profile}"
-      rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
-      rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
-      cd ..
+    cd ~/.mozilla 2> /dev/null
+    rmdir extensions 2> /dev/null
+    cd firefox 2> /dev/null
+    for profile in *.default; do
+        cd "${profile}"
+        rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
+        rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
+        cd ..
     done
 }
 
-function bleachbit_func ()
+function bleachbit_func()
 {
-    if [ -n "$(which bleachbit 2>/dev/null)" ]; then
-        bleachbit  -c \
+    if [ -n "$(which bleachbit 2> /dev/null)" ]; then
+        bleachbit -c \
             adobe_reader.cache \
             adobe_reader.mru \
             adobe_reader.tmp \
@@ -443,17 +443,18 @@ function bleachbit_func ()
             xine.cache \
             yum.clean_all \
             yum.vacuum
-      else
-        echo "bleachbit not found in \$PATH" >&2
-      fi
+    else
+        # shellcheck disable=SC2016
+        echo 'bleachbit not found in $PATH' >&2
+    fi
 }
 
-function root_func ()
+function root_func()
 {
     if [ $EUID == 0 ]; then
         echo LoL
-#        rm -r "/usr/share/locale/{[a-dg-z]*,e!(n),fr[a-z_@]*}"
-#        rm -r /usr/share/man/[a-no-z]*
+        #        rm -r "/usr/share/locale/{[a-dg-z]*,e!(n),fr[a-z_@]*}"
+        #        rm -r /usr/share/man/[a-no-z]*
     fi
 }
 

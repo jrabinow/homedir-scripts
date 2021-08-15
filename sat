@@ -5,7 +5,7 @@ set -o pipefail
 
 # write some cool doc here
 
-function main ()
+function main()
 {
     display=true
     while getopts "sh" opt; do
@@ -13,9 +13,9 @@ function main ()
             s)
                 display=false
                 ;;
-            h)    # help message
+            h) # help message
                 cat << EOF
-Usage: $(basename $0) [OPTION]...
+Usage: ${0##*/} [OPTION]...
 Options: -h: show this help dialog
     -s: silent mode
 EOF
@@ -28,16 +28,16 @@ EOF
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
     paused=$(grep -E -m1 "^#127.0.0.1\s*spclient.wg.spotify.com$" /etc/hosts || echo "")
     unpaused=$(grep -E -m1 "^127.0.0.1\s*spclient.wg.spotify.com$" /etc/hosts || echo "")
-    if [[ ! -z "${paused}" ]]; then
+    if [[ -n ${paused} ]]; then
         sed -i 's/^#127.0.0.1\s*spclient.wg.spotify.com$/127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
         if "${display}"; then
             printf "enabled ad-blocking\n"
         fi
-    elif [[ ! -z "${unpaused}" ]]; then
+    elif [[ -n ${unpaused} ]]; then
         sed -i 's/^127.0.0.1\s*spclient.wg.spotify.com$/#127.0.0.1 spclient.wg.spotify.com/' /etc/hosts
         if "${display}"; then
             printf "disabled ad-blocking\n"

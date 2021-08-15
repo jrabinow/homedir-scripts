@@ -2,34 +2,35 @@
 
 # display stats for a file in git source control
 
-function usage ()
+function usage()
 {
     cat >&2 << EOF
-Usage: $(basename $0) [OPTION]... FILE...
+Usage: ${0##*/} [OPTION]... FILE...
 Options: -t N: display top N commits
 	 -h: show this help dialog
 EOF
 }
 
-function main ()
+function main()
 {
-   TOP=5
-	while getopts "t:h" opt; do
-		case ${opt} in
-			h)	# help message
+    TOP=5
+    while getopts "t:h" opt; do
+        case ${opt} in
+            h) # help message
                 usage
-				exit 0
-				;;
+                exit 0
+                ;;
             t)
                 TOP="${OPTARG}"
-                shift; shift
-				;;
-			?)
-				echo "Unknown option, exiting now" >&2
-				exit 1
-				;;
-		esac
-	done
+                shift
+                shift
+                ;;
+            ?)
+                echo "Unknown option, exiting now" >&2
+                exit 1
+                ;;
+        esac
+    done
 
     if [ $# -eq 0 ]; then
         usage
@@ -38,7 +39,7 @@ function main ()
 
     txt=$(git blame --date=format:%G --show-email "$@")
     numlines=$(wc -l <<< "${txt}")
-    echo "${numlines} total lines"|sed 's/^\s+//'
+    echo "${numlines} total lines" | sed 's/^\s+//'
     echo "----- YEARS -----"
     echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
         | sed 's/^(.*\([0-9]\{4\}\).*)$/\1/' \
@@ -52,7 +53,7 @@ function main ()
         | sort \
         | uniq -c \
         | sort -r \
-        | awk '{print $2 " -> " $1 " lines"}'|column -t
+        | awk '{print $2 " -> " $1 " lines"}' | column -t
     echo "----- TOP DIFFS -----"
     echo "${txt}" | cut -b-8 \
         | sort \

@@ -3,17 +3,17 @@
 # prints out years the file was modified as well as up to 10 top committers for
 # a file in a mercurial repo
 
-function main ()
+function main()
 {
     txt=$(hg blame -upldq "$@")
     numlines=$(wc -l <<< "${txt}")
     echo "${numlines} total lines"
     echo "------ YEARS ------"
-    cut -d: -f1 <<< "${txt}"|awk '{split($NF,a,"-");print a[1]}' |sort |uniq -c|awk '{print $2 " -> " $1 " lines"}'
+    cut -d: -f1 <<< "${txt}" | awk '{split($NF,a,"-");print a[1]}' | sort | uniq -c | awk '{print $2 " -> " $1 " lines"}'
     echo "----- TOP AUTHORS -----"
-    awk '{print $1}' <<< "${txt}"|sort|uniq -c|sort -rn|head|awk '{print $2 " -> " $1 " lines"}'|column -t
-#    echo "----- TOP DIFFS -----"
-#    cut -d: -f1 <<< "${txt}"|sort -ur -t' ' -k1,1
+    awk '{print $1}' <<< "${txt}" | sort | uniq -c | sort -rn | head | awk '{print $2 " -> " $1 " lines"}' | column -t
+    #    echo "----- TOP DIFFS -----"
+    #    cut -d: -f1 <<< "${txt}"|sort -ur -t' ' -k1,1
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then

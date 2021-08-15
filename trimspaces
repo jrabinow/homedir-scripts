@@ -2,11 +2,12 @@
 
 # trims whitespace at beginning and end of lines
 
-function main ()
+function main()
 {
     if [ $# -gt 1 ]; then
         while [ $# -gt 1 ]; do
-            file="${1}"; shift
+            file="${1}"
+            shift
             sed -i -e 's/^\s*//;s/\s*$//' "${file}"
         done
     else

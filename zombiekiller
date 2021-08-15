@@ -2,17 +2,19 @@
 
 # reaps zombie processes
 
-set -u              # quit if we try to use unset variable
+set -e -u
+set -o pipefail
 
-function main ()
+function main()
 {
-    processes=$(ps aux|grep -E '\s+[zZ]\s+')
-    if [ ! -z "${processes}" ]; then
+    # shellcheck disable=SC2009
+    processes=$(ps aux | grep -E '\s+[zZ]\s+')
+    if [ -n "${processes}" ]; then
         echo "Killing:"
         echo "${processes}"
-        pids="$(echo "${processes}" | awk '{print $2}')"
-        usleep 100000   # don't bother with short lived processes
-        kill ${pids}
+        pids="$(awk '{print $2}' <<< "${processes}")"
+        sleep .1 # don't bother with short lived processes
+        echo "${pids}" | xargs -r kill
     else
         echo "No zombie processes!"
     fi

@@ -5,23 +5,23 @@ set -o pipefail
 
 # write some cool doc here
 
-function usage ()
+function usage()
 {
     cat << EOF
-Usage: $(basename $0) [OPTION]...
+Usage: ${0##*/} [OPTION]...
 Options: --help, -h: show this help dialog
          --reboot, -r: reboot phone before
 EOF
 }
 
-function main ()
+function main()
 {
     local device=foles
     local reboot=false
 
     while getopts "hr-:" opt; do
         case ${opt} in
-            h)  # help message
+            h) # help message
                 usage
                 exit 0
                 ;;
@@ -50,7 +50,7 @@ function main ()
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
     if "${reboot}"; then
         adb wait-for-device

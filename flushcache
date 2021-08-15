@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 
-platform="$(uname|tr '[:upper:]' '[:lower:]')"
-if [[ "${platform}" == "linux" ]]; then
-    sync; sleep 1; sync; sleep 1; sync; sleep 1; sudo bash -c 'echo 3 > /proc/sys/vm/drop_caches'
-elif [[ "${platform}" == "darwin" ]]; then
+platform="$(uname | tr '[:upper:]' '[:lower:]')"
+if [[ ${platform} == "linux" ]]; then
+    sync
+    sleep 1
+    sync
+    sleep 1
+    sync
+    sleep 1
+    sudo bash -c 'echo 3 > /proc/sys/vm/drop_caches'
+elif [[ ${platform} == "darwin" ]]; then
     sync && sudo purge
 else
     printf "unknown os\n"

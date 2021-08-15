@@ -9,22 +9,22 @@ set -o pipefail
 # if you already have imagemagick installed, this here is also a viable solution
 # http://kiirani.com/2013/03/22/tesseract-pdf.html
 
-function usage ()
+function usage()
 {
     cat << EOF
-Usage: $(basename "$0") [OPTION]... PDF_FILE
+Usage: ${0##*/} [OPTION]... PDF_FILE
 Options: --help, -h: show this help dialog
          --lang, -l: set PDF language for tesseract (see \`tesseract --list-langs\`)
 EOF
 }
 
-function main ()
+function main()
 {
     local lang=eng
 
     while getopts "hl-:" opt; do
         case ${opt} in
-            h)  # help message
+            h) # help message
                 usage
                 exit 0
                 ;;
@@ -53,18 +53,20 @@ function main ()
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
-    pdf_file=$1; shift
+    pdf_file=$1
+    shift
 
     # shellcheck disable=SC2034
-    readonly local pdf_file_name=$(basename "${pdf_file}" .pdf)
+    readonly local pdf_file_name
+    pdf_file_name=$(basename "${pdf_file}" .pdf)
 
-    if command -v pdftoppm >/dev/null 2>&1; then
+    if command -v pdftoppm > /dev/null 2>&1; then
         printf "pdftoppm not found; need to install poppler https://en.wikipedia.org/wiki/Poppler_(software)\n"
         exit 1
     fi
-    if command -v tesseract >/dev/null 2>&1; then
+    if command -v tesseract > /dev/null 2>&1; then
         printf "tesseract not found; need to install tesseract and the language pack your pdf is in https://en.wikipedia.org/wiki/Tesseract_(software)\n"
         exit 1
     fi
@@ -75,7 +77,7 @@ function main ()
         printf "processing page %s\n" "${page}"
         tesseract -l "${lang}" "${page}" "text-${page}"
     done
-    cd - 2>/dev/null
+    cd - 2> /dev/null
     cat "${tempdir}"/text-*.txt > "${pdf_file_name}.txt"
 }
 

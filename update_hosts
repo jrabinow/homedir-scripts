@@ -3,7 +3,7 @@
 # download host lists and apply them to /etc/hosts
 # this should be sufficient to kill ads in both spotify and google play
 
-function enable ()
+function enable()
 {
     case $(uname) in
         Linux)
@@ -73,7 +73,7 @@ function enable ()
 127.0.0.1 desktop.spotify.com
 127.0.0.1 heads-ec.spotify.com
 EOM
-            sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
+        sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
     fi
     # whitelist exactly the hostname pattern here. "^mixpanel.com$" will
     # whitelist traffic to mixpanel.com, but lines such as
@@ -97,17 +97,17 @@ EOM
     # replace space following ipaddr with a tab for consistency
     # remove duplicate lines
     # shellcheck disable=SC2086
-    curl ${adservers}  \
+    curl ${adservers} \
         | grep -v localhost \
         | sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
         | dos2unix \
         | sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1    /;s/\t/    /g' \
         | awk '!seen[$0]++' \
-        > "${newhosts}"
+            > "${newhosts}"
     # remove whitelisted lines
     for w in "${whitelist[@]}"; do
         pattern="${w//\^/127.0.0.1   }"
-        sed -i "/${pattern}/d"  "${newhosts}"
+        sed -i "/${pattern}/d" "${newhosts}"
     done
     # shellcheck disable=SC2024
     sudo tee /etc/hosts < /etc/hosts.orig > /dev/null
@@ -118,14 +118,12 @@ EOM
     rm "${newhosts}"
 }
 
-
-function disable ()
+function disable()
 {
     sudo cp /etc/hosts{.orig,}
 }
 
-
-function usage ()
+function usage()
 {
     cat << EOM
 Usage: $0 [--enable|--disable]
@@ -134,15 +132,14 @@ Usage: $0 [--enable|--disable]
 EOM
 }
 
-
-function main ()
+function main()
 {
     local action="${1##--}"
     test -z "$action" && action=enable
 
     while getopts "h-:" opt; do
         case ${opt} in
-            h)  # help message
+            h) # help message
                 usage
                 exit 0
                 ;;
@@ -171,7 +168,7 @@ function main ()
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
     case "${action}" in
         enable)

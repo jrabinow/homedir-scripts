@@ -3,15 +3,15 @@
 set -e -u
 set -o pipefail
 
-function main ()
+function main()
 {
-    local dirname=$(mktemp -d);
+    local dirname
+    dirname=$(mktemp -d)
     sudo chown "${USER}:${USER}" "${dirname}"
     chmod 700 "${dirname}"
-    echo $dirname
-    read -p "ready to continue? "
-    sudo mount -t tmpfs tmpfs "${dirname}";
-    cd "${dirname}";
+    read -r -p "ready to continue? "
+    sudo mount -t tmpfs tmpfs "${dirname}"
+    cd "${dirname}"
     local COPYFILES=(
         .bashrc
         .config/bash
@@ -23,18 +23,17 @@ function main ()
     )
     for f in "${COPYFILES[@]}"; do
         dir="$(dirname "${f}")"
-        file="${f##*/}"
-        test -e ~/"${f}"&& \
-            mkdir -p "${dirname}/${dir}" && \
-            cp -rv ~/"${f}" "${dirname}/${dir}/"
+        test -e ~/"${f}" \
+            && mkdir -p "${dirname}/${dir}" \
+            && cp -rv ~/"${f}" "${dirname}/${dir}/"
     done
-    ln -s ~/bin "${dirname}";
-    HOME="${dirname}" bash;
+    ln -s ~/bin "${dirname}"
+    HOME="${dirname}" bash
     rm -f "${dirname}/bin"
     find -P "${dirname}" -type f -print0 | xargs -r0 shred -zvfu
-    cd -;
-    sudo rm -rf "${dirname}/*";
-    sudo umount "${dirname}";
+    cd -
+    sudo rm -rf "${dirname}/*"
+    sudo umount "${dirname}"
     rmdir "${dirname}"
 }
 

@@ -5,7 +5,7 @@ set -o pipefail
 
 # write some cool doc here
 
-function usage ()
+function usage()
 {
     cat << EOF
 Usage: ${0##*/}" [OPTION]... get PASTE_ID
@@ -15,11 +15,11 @@ When posting, FILE argument is optional. If not provided, wwwpaste will read std
 EOF
 }
 
-function main ()
+function main()
 {
     while getopts "h-:" opt; do
         case ${opt} in
-            h)  # help message
+            h) # help message
                 usage
                 exit 0
                 ;;
@@ -42,20 +42,23 @@ function main ()
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
-    action="${1}"; shift
+    action="${1}"
+    shift
 
     case "${action}" in
         get)
-            id="${1##https://paste.rs/}"; shift
+            id="${1##https://paste.rs/}"
+            shift
             curl "https://paste.rs/${id}"
             ;;
         post)
             if [ "${#}" -eq 0 ]; then
                 curl -X POST "https://paste.rs/" --data-binary @-
             else
-                file="${1}"; shift
+                file="${1}"
+                shift
                 test -r "${file}" && curl -X POST "https://paste.rs/" --data-binary "@${file}"
             fi
             ;;
