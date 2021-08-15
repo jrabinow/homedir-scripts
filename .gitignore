@@ -1,3 +1,6 @@
 *.swp
 /banner
 /exitcodes
+/dnf_update
+/imgcat
+/timemachine
