@@ -70,7 +70,6 @@ function main()
         .config/Thunar
         .config/tracker
         .config/viewnior
-        .config/wireshark
         .config/xarchiver
         .config/yelp
         .cinnamon
