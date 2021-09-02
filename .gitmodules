@@ -1,3 +1,6 @@
 [submodule "thirdparty/osx-cpu-temp"]
 	path = thirdparty/osx-cpu-temp
 	url = https://github.com/lavoiesl/osx-cpu-temp.git
+[submodule "thirdparty/sack"]
+	path = thirdparty/sack
+	url = https://github.com/garaud/sack
