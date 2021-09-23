@@ -11,7 +11,7 @@ endif
 all: htmlparser osxcputemp iproute2mac
 
 htmlparser:
-	cd htmlparser && go build
+	cd htmlparser && go build && ln -s ~/bin/thirdparty/htmlparser ~/bin
 
 osxcputemp:
 	$(OSXCPUTEMP_BUILD)
