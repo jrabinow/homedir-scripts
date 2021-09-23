@@ -8,6 +8,7 @@ Write_description_and_usage_example_here
 import argparse
 import logging
 import os
+import sys
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
@@ -41,7 +42,9 @@ def parse_args():
         action="store_true",
         help="create a symlink even if the file doesn't exist in that backup",
     )
-    parser.add_argument("DIR", help="name of directory in which to create symlinks")
+    parser.add_argument(
+        "SYMLINK_DIR", help="name of directory in which to create symlinks"
+    )
     parser.add_argument(
         "FILE", nargs="+", help="list of files for which to create symlinks"
     )
@@ -82,7 +85,7 @@ def main():
 
     backupsdir = os.path.join(args.basedir, args.device)
     for filearg in args.FILE:
-        create_symlinks_for_file(args.DIR, backupsdir, filearg, args.always_symlink)
+        create_symlinks_for_file(args.SYMLINK_DIR, backupsdir, filearg, args.always_symlink)
 
 
 if __name__ == "__main__":
