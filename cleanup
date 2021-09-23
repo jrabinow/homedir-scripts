@@ -274,7 +274,7 @@ function main()
     done
     LOCATE=$([[ $(uname) == Darwin ]] && echo slocate || echo locate)
     # shellcheck disable=SC2046
-    ${LOCATE} recently-used.xbel | xargs rm -f
+    (${LOCATE} recently-used.xbel || echo) | xargs -r rm -f
 
     if [ -d ~/.mozilla ]; then
         firefox_cleanup
