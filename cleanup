@@ -29,7 +29,7 @@ function main()
         .CFUserTextEncoding
         .cgobanrc
         .config/abrt
-        .config/"chromium/Default/Local Storage"
+        ".config/chromium/Default/Local Storage"
         .config/cinnamon-session
         .config/clipit
         .config/configstore
@@ -46,7 +46,7 @@ function main()
         .config/gnome-initial-setup-done
         .config/gnome-session
         .config/goa-1.0
-        .config/"google-chrome/Default/Local Storage"
+        ".config/google-chrome/Default/Local Storage"
         .config/google-googletalkplugin
         .config/gtk-2.0
         .config/gtk-3.0
@@ -76,8 +76,8 @@ function main()
         .cups
         .dbus
         .ddd
+        .dlv
         .dreamchess
-        .DS_Store
         .docker
         .dvdcss
         .eclipse
@@ -101,9 +101,11 @@ function main()
         .gnote
         .golly
         .googleearth
+        .grip
         .gstreamer-0.10
         .gvfs
         .hedgewars
+        .hex
         .icedtea
         .icons
         .isag.cfg
@@ -194,6 +196,7 @@ function main()
         .config/user-dirs.dirs
         .config/user-dirs.locale
         .cuda-gdbinit
+        .DS_Store
         .emulator_console_auth_token
         .esd_auth
         .fixmyserver-homedir-write-test
@@ -221,6 +224,7 @@ function main()
         .rediscli_history
         .repo_.gitconfig.json
         .rnd
+        .sack_shortcuts
         .scala_history
         .scm.sqlite
         .scuba_history
