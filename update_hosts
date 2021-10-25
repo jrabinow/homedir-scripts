@@ -22,56 +22,56 @@ function enable()
 # The following hosts are all ad servers, the list can be updated by
 # running update_hosts
 
-127.0.0.1   gads.pubmatic.com
-127.0.0.1   spclient.wg.spotify.com
-127.0.0.1 media-match.com
-127.0.0.1 adclick.g.doublecklick.net
-127.0.0.1 www.googleadservices.com
-127.0.0.1 pagead2.googlesyndication.com
-127.0.0.1 googleads.g.doubleclick.net
-127.0.0.1 pubads.g.doubleclick.net
-127.0.0.1 securepubads.g.doubleclick.net
-127.0.0.1 www.omaze.com
-127.0.0.1 omaze.com
-127.0.0.1 bounceexchange.com
-127.0.0.1 core.insightexpressai.com
-127.0.0.1 content.bitsontherun.com
-127.0.0.1 s0.2mdn.net
-127.0.0.1 v.jwpcdn.com
-127.0.0.1 d2gi7ultltnc2u.cloudfront.net
-127.0.0.1 cs283.wpc.teliasoneracdn.net
-127.0.0.1 cs126.wpc.teliasoneracdn.net
-127.0.0.1 u.scdn.co
-127.0.0.1 cs126.wpc.edgecastcdn.net
-127.0.0.1 pagead46.l.doubleclick.net
-127.0.0.1 pagead.l.doubleclick.net
-127.0.0.1 video-ad-stats.googlesyndication.com
-127.0.0.1 pagead-googlehosted.l.google.com
-127.0.0.1 partnerad.l.doubleclick.net
-127.0.0.1 prod.spotify.map.fastlylb.net
-127.0.0.1 adserver.adtechus.com
-127.0.0.1 na.gmtdmp.com
-127.0.0.1 anycast.pixel.adsafeprotected.com
-127.0.0.1 ads.pubmatic.com
-127.0.0.1 idsync-ext.rlcdn.com
-127.0.0.1 www.googletagservices.com
-127.0.0.1 googlehosted.l.googleusercontent.com
-127.0.0.1 d361oi6ppvq2ym.cloudfront.net
-127.0.0.1 gads.pubmatic.com
-127.0.0.1 ads-west-colo.adsymptotic.com
-127.0.0.1 geo3.ggpht.com
-127.0.0.1 showads33000.pubmatic.com
-127.0.0.1 crashdump.spotify.com
-127.0.0.1 adeventtracker.spotify.com
-127.0.0.1 log.spotify.com
-127.0.0.1 analytics.spotify.com
-127.0.0.1 ads-fa.spotify.com
-127.0.0.1 audio-ec.spotify.com
-127.0.0.1 sto3.spotify.com
-127.0.0.1 audio2.spotify.com
-127.0.0.1 www.audio2.spotify.com
-127.0.0.1 desktop.spotify.com
-127.0.0.1 heads-ec.spotify.com
+127.0.0.1    gads.pubmatic.com
+127.0.0.1    spclient.wg.spotify.com
+127.0.0.1    media-match.com
+127.0.0.1    adclick.g.doublecklick.net
+127.0.0.1    www.googleadservices.com
+127.0.0.1    pagead2.googlesyndication.com
+127.0.0.1    googleads.g.doubleclick.net
+127.0.0.1    pubads.g.doubleclick.net
+127.0.0.1    securepubads.g.doubleclick.net
+127.0.0.1    www.omaze.com
+127.0.0.1    omaze.com
+127.0.0.1    bounceexchange.com
+127.0.0.1    core.insightexpressai.com
+127.0.0.1    content.bitsontherun.com
+127.0.0.1    s0.2mdn.net
+127.0.0.1    v.jwpcdn.com
+127.0.0.1    d2gi7ultltnc2u.cloudfront.net
+127.0.0.1    cs283.wpc.teliasoneracdn.net
+127.0.0.1    cs126.wpc.teliasoneracdn.net
+127.0.0.1    u.scdn.co
+127.0.0.1    cs126.wpc.edgecastcdn.net
+127.0.0.1    pagead46.l.doubleclick.net
+127.0.0.1    pagead.l.doubleclick.net
+127.0.0.1    video-ad-stats.googlesyndication.com
+127.0.0.1    pagead-googlehosted.l.google.com
+127.0.0.1    partnerad.l.doubleclick.net
+127.0.0.1    prod.spotify.map.fastlylb.net
+127.0.0.1    adserver.adtechus.com
+127.0.0.1    na.gmtdmp.com
+127.0.0.1    anycast.pixel.adsafeprotected.com
+127.0.0.1    ads.pubmatic.com
+127.0.0.1    idsync-ext.rlcdn.com
+127.0.0.1    www.googletagservices.com
+127.0.0.1    googlehosted.l.googleusercontent.com
+127.0.0.1    d361oi6ppvq2ym.cloudfront.net
+127.0.0.1    gads.pubmatic.com
+127.0.0.1    ads-west-colo.adsymptotic.com
+127.0.0.1    geo3.ggpht.com
+127.0.0.1    showads33000.pubmatic.com
+127.0.0.1    crashdump.spotify.com
+127.0.0.1    adeventtracker.spotify.com
+127.0.0.1    log.spotify.com
+127.0.0.1    analytics.spotify.com
+127.0.0.1    ads-fa.spotify.com
+127.0.0.1    audio-ec.spotify.com
+127.0.0.1    sto3.spotify.com
+127.0.0.1    audio2.spotify.com
+127.0.0.1    www.audio2.spotify.com
+127.0.0.1    desktop.spotify.com
+127.0.0.1    heads-ec.spotify.com
 EOM
         sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
     fi
@@ -88,22 +88,28 @@ EOM
         https://adaway.org/hosts.txt
         https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
         https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+        https://gitlab.com/AuroraOSS/AppWarden/-/raw/master/hosts/warden_trackers.txt
     "
     newhosts=$(mktemp)
 
     # remove lines with localhost, we already take care of those
+    # replace 0.0.0.0 with 127.0.0.1
     # make sure only lines redirecting to localhost are authorized
     # convert from that BS that windows calls EOLs to proper '\n's
     # strip inline comments and replace tabs with spaces
     # replace space following ipaddr with a tab for consistency
     # remove duplicate lines
+    # sort final list
+
     # shellcheck disable=SC2086
     curl ${adservers} \
         | grep -v localhost \
+        | sed -E 's/^0.0.0.0/127.0.0.1/' \
         | sed -nE '/^(127\.0\.0\.1|::1)[[:space:]]+/p' \
         | dos2unix \
         | sed -E 's/[[:space:]]+#.*//;s/^(127\.0\.0\.1|::1) +/\1    /;s/\t/    /g' \
         | awk '!seen[$0]++' \
+        | sort \
             > "${newhosts}"
     # remove whitelisted lines
     for w in "${whitelist[@]}"; do
@@ -127,7 +133,7 @@ function disable()
 function usage()
 {
     cat << EOM
-Usage: $0 [--enable|--disable]
+Usage: ${0##*/} [--enable|--disable]
     --enable: enable ad-blocking
     --disable: disable ad-blocking
 EOM
