@@ -4,16 +4,39 @@ set -e -u -o pipefail
 
 # write some cool doc here
 
+function usage ()
+{
+    cat << EOF
+Usage: ${0##*/} [OPTION]...
+Options: -h, --help: show this help dialog
+         --no-selfupdate: don't run \`port selfupdate\`
+EOF
+}
+
 function main()
 {
-    while getopts "h" opt; do
-        case ${opt} in
+    run_port_selfupdate=true
+
+    while getopts "h-:" opt; do
+        case "${opt}" in
             h) # help message
-                cat << EOF
-Usage: ${0##*/} [OPTION]...
-Options: -h: show this help dialog
-EOF
+                usage
                 exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    no-selfupdate)
+                        run_port_selfupdate=false
+                        ;;
+                    *)
+                        printf "Unknown option, exiting now\n" >&2
+                        exit 1
+                        ;;
+                esac
                 ;;
             ?)
                 echo "Unknown option, exiting now" >&2
@@ -21,12 +44,14 @@ EOF
                 ;;
         esac
     done
-    sudo port selfupdate
+    if "${run_port_selfupdate}"; then
+        sudo port selfupdate
+    fi
     sudo port upgrade outdated
-    sudo port uninstall leaves
-    sudo port uninstall inactive
-    sudo port uninstall rleaves
-    sudo port reclaim
+    sudo port uninstall leaves || true
+    sudo port uninstall inactive || true
+    sudo port uninstall rleaves || true
+    sudo port reclaim || true
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
