@@ -20,12 +20,12 @@ function monitor_and_skip_ads ()
     old_track_id=""
 
     while is_spotify_running; do
-        track_id="$(osascript -e 'tell application "spotify" to id of current track')"
+        track_id="$(osascript -e 'tell application "spotify" to id of current track' || echo "")"
         if [[ "${track_id}" =~ "spotify:ad:" ]]; then
             pkill -i spotify
             sleep 1
             spotify_launchnplay
-            track_id="$(osascript -e 'tell application "spotify" to id of current track')"
+            track_id="$(osascript -e 'tell application "spotify" to id of current track' || echo "")"
             if [ "${track_id}" == "${old_track_id}" ]; then
                 osascript -e 'tell application "spotify" to next track'
             fi
