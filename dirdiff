@@ -1,102 +1,262 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python
+# -*- coding: utf-8 -*-
 
-"""Prints differing files in 2 or more directories
-Given the following directory layout
-
-foo1/       foo2/
-    f1          f1
-    f2          f2
-    f3
-
-with f1 having different contents in foo1 and foo2,
-f1 will be detected as differing, and f3 will be detected
-as an additional file in foo1
-The operation is recursive across directories in foo1 and foo2
+"""
+dirdiff [OPTIONS...] dir1 dir2
+modified files:
+1 column
+moved/renamed files:
+2 columns
+additional files:
+1 column
 """
 
-import os, sys, hashlib, re
 from collections import defaultdict
-BUFSIZ = 65536
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Dict, List
+import argparse
+import dataclasses
+import hashlib
+import json
+import logging
+import os
 
-class File:
-    def __init__(self, path, hashval, rootdir):
-        self.name = os.path.basename(path)
-        self.path = path
-        self.hashval = hashval
+LOG = logging.getLogger()
+LOG.setLevel("INFO")
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+LOG.addHandler(ch)
+
+# types
+HexDigest = str
+
+
+@dataclasses.dataclass
+class DirDiffFile:
+    rootdir: Path
+    position: Path
+    hexdigest: str
+
+    def __init__(self, rootdir, path):
         self.rootdir = rootdir
+        self.position = path
+        self.hexdigest = file_hexdigest(self.absolute)
+
+    @property
+    def absolute(self):
+        return self.rootdir / self.position
+
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        if isinstance(o, Path):
+            return str(o)
+        return super().default(o)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="enable debug logging information",
+    )
+    parser.add_argument(
+        "--hide-modified",
+        action="store_true",
+        help="don't show files that were modified",
+    )
+    parser.add_argument(
+        "--hide-moved",
+        action="store_true",
+        help="don't show files that were moved around",
+    )
+    parser.add_argument(
+        "--hide-additional",
+        action="store_true",
+        help="don't show files if they weren't either moved or modified",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="display output as JSON",
+    )
+    parser.add_argument(
+        "dirpath",
+        type=Path,
+        nargs="+",
+        help="dir path",
+    )
+    args = parser.parse_args()
+    if args.debug:
+        LOG.setLevel(logging.DEBUG)
+    return args
+
+
+@contextmanager
+def chdir(dirname):
+    oldpwd = Path().absolute()
+    try:
+        os.chdir(dirname)
+        yield
+    finally:
+        os.chdir(oldpwd)
+
 
 def apply_to_dir(dirpath, func):
-    __apply_to_dir_internal = lambda x: list(map(func,
-        [ os.path.join(x[0], filename) for filename in x[2]]))
-    list(map(__apply_to_dir_internal, os.walk(dirpath)))
+    return [
+        func(os.path.join(dirp, fname))
+        for dirp, _, filenames in os.walk(dirpath)
+        for fname in filenames
+    ]
+
+
+def file_hexdigest(filepath):
+    hasher = hashlib.sha1()
+    BUFSIZ = 65536
+    # try:
+    with open(filepath, "rb") as f:
+        buf = f.read(BUFSIZ)
+        while len(buf) > 0:
+            hasher.update(buf)
+            buf = f.read(BUFSIZ)
+    # except:
+    #    hasher.update(b"")
+    return hasher.hexdigest()
+
+
+def preprocess_into_datastructs(rootdirs: List[Path]):
+    # let's collect all the files from all the rootdirs and build our base data structures
+    hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    pathdiff_data: Dict[Path, List[DirDiffFile]] = defaultdict(list)
+
+    for rootdir in rootdirs:
+        rootdir_path = Path(rootdir)
+        with chdir(rootdir_path):
+            filelist = apply_to_dir(".", lambda x: Path(x))
+        for f in filelist:
+            try:
+                ddf = DirDiffFile(rootdir_path, f)
+                hashdiff_data[ddf.hexdigest][ddf.position].append(ddf)
+                pathdiff_data[ddf.position].append(ddf)
+            except PermissionError as e:
+                LOG.warning(f"error processing {f}: {e}")
+
+    return hashdiff_data, pathdiff_data
+
+
+def partition_matched_unmatched(
+    hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]], rootdirs: List[Path]
+):
+    matched: Dict[HexDigest, List[DirDiffFile]] = defaultdict(list)
+    unmatched: Dict[HexDigest, List[DirDiffFile]] = defaultdict(list)
+
+    # dir1/foopath1/barfile1 is matched with dir2/foopath2/barfile2 if:
+    #    - foopath1 == foopath2
+    #    - hash(barfile1) == hash(barfile2).
+    # Otherwise, barfile1 is unmatched.
+    len_rootdirs = len(rootdirs)
+    for hexdigest, filedata in hashdiff_data.items():
+        for _, filelist in filedata.items():
+            if len(filelist) == len_rootdirs:
+                matched[hexdigest].extend(filelist)
+            else:
+                for f in filelist:
+                    unmatched[f.hexdigest].append(f)
+
+    return matched, unmatched
+
+
+def partition_unmatched_by_type(
+    unmatched: Dict[HexDigest, List[DirDiffFile]],
+    pathdiff_data: Dict[Path, List[DirDiffFile]],
+    rootdirs: List[Path],
+):
+    # We distinguish 3 cases for unmatched files:
+    #  - modified file
+    #  - moved/renamed file
+    #  - additional file
+    #
+    # dir1/foopath1/barfile1 was modified if:
+    #  - dir2/foopath2/barfile2 with foopath1 == foopath2 exists
+    #  - hash(barfile1) != hash(barfile2)
+    # dir1/foopath1/barfile1 was moved/renamed if:
+    #  - there exists dir2/foopath2/barfile2 such that foopath1 != foopath2 and hash(barfile1) == hash(barfile2)
+    #  - neither barfile1 nor barfile2 are modified as per the definition above
+    # dir1/foopath1/barfile1 is additional if:
+    #  - barfile1 is not modified as per the definition above
+    #  - barfile1 is not moved/renamed as per the definition above
+    len_rootdirs = len(rootdirs)
+    modified: Dict[Path, List[DirDiffFile]] = defaultdict(list)
+    moved: List[List[DirDiffFile]] = []
+    additional: List[DirDiffFile] = []
+
+    for _, filelist in unmatched.items():
+        unmodified = []
+        for f in filelist:
+            # if all rootdirs have a file at this position -> file was modified
+            if len(pathdiff_data[f.position]) == len_rootdirs:
+                modified[f.position].append(f)
+            else:
+                unmodified.append(f)
+        # any unmodified file is either moved/renamed, or isn't in all rootdirs
+        # all these files have the same hexdigest, and don't necessarily have the same path
+        if len(unmodified) > 0:
+            # if there's one file per repo, then at least one file was moved
+            if len({f.rootdir for f in unmodified}) == len_rootdirs:
+                moved.append(unmodified)
+            # otherwise, who knows
+            else:
+                additional.extend(unmodified)
+
+    return modified, moved, additional
+
+
+def print_results(
+    args,
+    modified: Dict[Path, List[DirDiffFile]],
+    moved: List[List[DirDiffFile]],
+    additional: List[DirDiffFile],
+):
+    output_dict = {
+        "modified": {str(k): v for k, v in modified.items()}
+        if not args.hide_modified
+        else {},
+        "moved": moved if not args.hide_moved else [],
+        "added": additional if not args.hide_additional else [],
+    }
+
+    if args.json:
+        print(json.dumps(output_dict, indent=2, cls=JSONEncoder))
+    else:
+        for filepath in output_dict["modified"]:
+            print(f"modified: {filepath}")
+        for ren in output_dict["moved"]:
+            moved_str = ", ".join([str(f.absolute) for f in ren])
+            print(f"moved/renamed: {moved_str}")
+        for add in output_dict["added"]:
+            print(f"added: {add.absolute}")
 
 
 def main():
-    if len(sys.argv) < 3:
-        print("Usage: %s dir1 dir2 [dir3...]" % sys.argv[0])
-        exit(1)
-    files = defaultdict(list)
-    dirnum = 1
+    args = parse_args()
 
-    def hash_file(filepath):
-        hasher = hashlib.sha1()
-        try:
-            with open(filepath, 'rb') as f:
-                buf = f.read(BUFSIZ)
-                while len(buf) > 0:
-                    hasher.update(buf)
-                    buf = f.read(BUFSIZ)
-        except:
-            hasher.update(b'')
-        return hasher.hexdigest()
-
-    def add_to_dict(filepath):
-        rootdir = sys.argv[dirnum]
-        path = re.sub("^" + sys.argv[dirnum], "", filepath)
-        files[path].append(
-                File(path, hash_file(filepath), rootdir)
-        )
-
-    valid_dirs = 0
-    for i in range(1, len(sys.argv)):
-        sys.argv[i] = re.sub("/*$", "/", sys.argv[i])
-        if os.path.exists(sys.argv[i]):
-            apply_to_dir(sys.argv[i], add_to_dict)
-            valid_dirs += 1
-        else:
-            print("%s does not exist on filesystem" % sys.argv[i], file=sys.stderr)
-        dirnum += 1
-
-    if valid_dirs < 2:
-        print("Too many invalid directories", file=sys.stderr)
-        exit(1)
-
-    missing_files = dict()
-    differing_files = dict()
-    for k, v in files.items():
-        if len(v) == 1:
-            missing_files[k] = v[0]
-        elif len(v) > 1:
-            hashval = v[0].hashval
-            if not all(map(lambda x: x.hashval == hashval, v)):
-                differing_files[k] = v[0]
-
-    missing_files = sorted(missing_files.values(), key=lambda x: x.rootdir + x.path)
-    differing_files = sorted(differing_files.values(), key=lambda x: x.rootdir + x.path)
-
-    # max throws ValueError if given an empty list
-    missing_files.append(File('', '', ''))
-    differing_files.append(File('', '', ''))
-
-    maxlen = max(max(map(lambda x: len(x.path), missing_files)),
-                 max(map(lambda x: len(x.path), differing_files)))
-
-    for i in missing_files[:-1]:
-        print("{0}:{1}     additional file {2}{3}".format((i.name),
-                    ' ' * (maxlen - len(i.name)), i.rootdir, i.path))
-    for i in differing_files[:-1]:
-        print('{0}:{1}     differ'.format(i.path, ' ' * (maxlen - len(i.path))))
+    hashdiff_data, pathdiff_data = preprocess_into_datastructs(args.dirpath)
+    matched, unmatched = partition_matched_unmatched(hashdiff_data, args.dirpath)
+    modified, moved, additional = partition_unmatched_by_type(
+        unmatched, pathdiff_data, args.dirpath
+    )
+    print_results(args, modified, moved, additional)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
