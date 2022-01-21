@@ -111,6 +111,7 @@ function main()
         .isag.cfg
         .java
         .jupyter
+        .keras
         .kde
         .lftp
         .links
@@ -214,6 +215,7 @@ function main()
         .myclirc
         .mysql_history
         .node_repl_history
+        .npmrc
         .ophcrackrc
         .pEp_management.db
         .pEp_management.db-shm
@@ -265,6 +267,10 @@ function main()
 
     # separately to avoid any array issues
     #rm -rf $HOME/.android/!(avd)
+
+    if [[ "${OSTYPE}" =~ darwin ]]; then
+        test -d ~/.Trash && /bin/chmod -N ~/.Trash
+    fi
 
     for d in "${homedir_dirs[@]}"; do
         rm -rf "$HOME/${d:?}"
