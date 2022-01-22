@@ -3,6 +3,7 @@
 /exitcodes
 /dnf_update
 /imgcat
+/codemod
 /timemachine
 /osx-cpu-temp
 /ip

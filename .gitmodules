@@ -1,12 +1,12 @@
 [submodule "thirdparty/osx-cpu-temp"]
-	path = thirdparty/osx-cpu-temp
+	path = src/thirdparty/osx-cpu-temp
 	url = https://github.com/lavoiesl/osx-cpu-temp.git
 [submodule "thirdparty/sack"]
-	path = thirdparty/sack
+	path = src/thirdparty/sack
 	url = https://github.com/garaud/sack
 [submodule "thirdparty/iproute2mac"]
-	path = thirdparty/iproute2mac
+	path = src/thirdparty/iproute2mac
 	url = https://github.com/brona/iproute2mac.git
 [submodule "thirdparty/htmlparser"]
-	path = thirdparty/htmlparser
+	path = src/thirdparty/htmlparser
 	url = https://github.com/htmlparser/htmlparser
