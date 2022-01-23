@@ -16,6 +16,15 @@ Options: --help, -h: show this help dialog
 EOF
 }
 
+function battery_status ()
+{
+    battstats=$(termux-battery-status)
+    isplugged="$(jq -r .plugged <<< "${battstats}")"
+    percentage="$(jq -r .percentage <<< "${battstats}")"
+
+    [ "${isplugged}" == "PLUGGED" ] || [ "${percentage}" -ge 30 ]
+}
+
 function main()
 {
     user=0
@@ -53,8 +62,11 @@ function main()
     archive_name="u${user}_storage_${archive_ts}"
     full_repo_path="${REPO_PATH}/${user}/storage.borg"
     full_archive_path="${full_repo_path}::${archive_name}"
-    borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
-    borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
+
+    if battery_status; then
+        borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
+        borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
+    fi
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
