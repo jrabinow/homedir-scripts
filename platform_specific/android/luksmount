@@ -1,8 +1,18 @@
 #!/system/bin/sh
 
+# decrypt and mount luks-encrypted micro-sdcard to $MOUNTBASE
+# Initial setup:
+# https://github.com/jrabinow/droidscripts/blob/main/microsd/setup_microsd.sh
+# Also correct the $PARTITION var if incorrect. MOUNTBASE can be adjusted to
+# anything you want.
+# Run as root in an environment with cryptsetup installed, easiest way I'm aware of
+# is to install termux from fdroid and install cryptsetup from there.
+#
 # https://blog.ja-ke.tech/2020/04/04/android-luks2.html
+
 PARTITION=/dev/block/mmcblk0p2
 LABEL=microsd_luks
+MOUNTBASE=/mnt/media_rw
 
 set -e -u
 set -o pipefail
@@ -57,14 +67,13 @@ function main()
     fi
 
     sdcard_uuid="$(blkid "/dev/mapper/${LABEL}" -o export|grep '^UUID='|cut -d= -f2)"
-    TARGET="/mnt/media_rw/${sdcard_uuid}"
+    TARGET="${MOUNTBASE}/${sdcard_uuid}"
     mkdir -p "${TARGET}"
 
     # Mounting
     nsenter -t 1 -m sh << EOF
 mountpoint "${TARGET}" >/dev/null || mount -t ext4 -o nosuid,nodev,noatime "/dev/mapper/${LABEL}" "${TARGET}"
 EOF
-    am broadcast -a android.intent.action.MEDIA_MOUNTED -d "file:///storage/emulated/0"
 }
 
 main "$@"

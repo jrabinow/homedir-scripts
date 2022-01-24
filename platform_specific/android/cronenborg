@@ -3,10 +3,27 @@
 set -e -u
 set -o pipefail
 
-# write some cool doc here
+# wrapper around `borgbackup` to make sure it runs with all the correct params
+#
+# Usecase: use cron to auto-backup `/storage/emulated/$user` every night. You
+# will need a rooted phone with a microsd slot and a microsd card of large
+# enough size
+# - install https://f-droid.org/en/packages/it.faerb.crond/
+# - install https://f-droid.org/en/packages/com.termux/
+# - launch termux, install borgbackup and jq
+# - make sure your miscro-sd card is mounted on the phone, see
+#   https://github.com/jrabinow/homedir-scripts/blob/main/platform_specific/android/luksmount
+# - save https://github.com/jrabinow/droidscripts/blob/main/termux_cronwrap.sh to
+#   `/data` and `chmod +x` it
+# - add `/data/termux_cronwrap.sh cronenborg -u0` to your /data/crontab to
+#   backup user0's internal storage to the phone's microsd card
+# - optional: install termux:api from fdroid for notifications
+
+
 readonly PARTLABEL=microsd_luks
 readonly PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export|grep '^UUID'|cut -d= -f2)"
 readonly REPO_PATH="/mnt/media_rw/${PARTUUID}/archive"
+readonly BATT_MIN_PERCENTAGE=30
 
 function usage()
 {
@@ -22,7 +39,7 @@ function battery_status ()
     isplugged="$(jq -r .plugged <<< "${battstats}")"
     percentage="$(jq -r .percentage <<< "${battstats}")"
 
-    [ "${isplugged}" == "PLUGGED" ] || [ "${percentage}" -ge 30 ]
+    [ "${isplugged}" == "PLUGGED" ] || [ "${percentage}" -ge ${BATT_MIN_PERCENTAGE} ]
 }
 
 function main()
@@ -64,8 +81,17 @@ function main()
     full_archive_path="${full_repo_path}::${archive_name}"
 
     if battery_status; then
+        if [ ! -d "${full_repo_path}" ]; then
+            mkdir -p "${full_repo_path}"
+            borg init "${full_repo_path}"
+        fi
         borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
         borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
+        if command -v termux-notification > /dev/null; then
+            termux-notification -t "cronenborg" -c "${archive_name} successfully created for user ${user}"
+        fi
+    elif command -v termux-notification > /dev/null; then
+        termux-notification -t "cronenborg" -c "battery not charging and too low, skipping for user ${user}"
     fi
 }
 
