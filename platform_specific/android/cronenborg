@@ -22,7 +22,8 @@ set -o pipefail
 
 readonly PARTLABEL=microsd_luks
 readonly PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export|grep '^UUID'|cut -d= -f2)"
-readonly REPO_PATH="/mnt/media_rw/${PARTUUID}/archive"
+readonly MOUNTPOINT="/mnt/media_rw/${PARTUUID}"
+readonly REPO_PATH="${MOUNTPOINT}/archive"
 readonly BATT_MIN_PERCENTAGE=30
 
 function usage()
@@ -35,11 +36,24 @@ EOF
 
 function battery_status ()
 {
-    battstats=$(termux-battery-status)
-    isplugged="$(jq -r .plugged <<< "${battstats}")"
-    percentage="$(jq -r .percentage <<< "${battstats}")"
+    battstats="$(su -c 'dumpsys battery')"
+    isplugged="$(grep 'AC powered: ' <<< "${battstats}"|awk '{print $3}')"
+    percentage="$(grep -E '^\s*level:' <<< "${battstats}"|awk '{print $2}')"
 
-    [ "${isplugged}" == "PLUGGED" ] || [ "${percentage}" -ge ${BATT_MIN_PERCENTAGE} ]
+    "${isplugged}" || [ "${percentage}" -ge ${BATT_MIN_PERCENTAGE} ]
+}
+
+function gen_notification ()
+{
+    title="${1}"; shift
+    text="${1}"; shift
+
+    timeout 30 cmd notification post -S bigtext -t "${title}" 'Im really not sure what this is' "${text}" > /dev/null
+}
+
+function verify_is_mounted ()
+{
+    mount|grep "${PARTLABEL} on ${MOUNTPOINT} type ext4" >/dev/null
 }
 
 function main()
@@ -80,18 +94,21 @@ function main()
     full_repo_path="${REPO_PATH}/${user}/storage.borg"
     full_archive_path="${full_repo_path}::${archive_name}"
 
+    verify_is_mounted
+
     if battery_status; then
         if [ ! -d "${full_repo_path}" ]; then
             mkdir -p "${full_repo_path}"
-            borg init "${full_repo_path}"
+            # timeout after 10min
+
+            timeout 600 borg init "${full_repo_path}"
         fi
-        borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
-        borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
-        if command -v termux-notification > /dev/null; then
-            termux-notification -t "cronenborg" -c "${archive_name} successfully created for user ${user}"
-        fi
-    elif command -v termux-notification > /dev/null; then
-        termux-notification -t "cronenborg" -c "battery not charging and too low, skipping for user ${user}"
+        # abort after 3 hours == 10800 seconds
+        timeout 10800 borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
+        timeout 10800 borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
+        gen_notification "cronenborg" "${archive_name} successfully created for user ${user}"
+    else
+        gen_notification "cronenborg" "battery not charging and too low, skipping for user ${user}"
     fi
 }
 
