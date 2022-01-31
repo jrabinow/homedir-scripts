@@ -28,6 +28,11 @@ def parse_args():
         help="enable debug logging information",
     )
     parser.add_argument(
+        "--decode",
+        action="store_true",
+        help="decode query params when urlencoded",
+    )
+    parser.add_argument(
         "url",
         # type=int,
         nargs="+",
@@ -39,14 +44,31 @@ def parse_args():
     return args
 
 
+# urldefense.proofpoint.com uses its own encoding scheme, because screw
+# standards I guess 🙄
+# https://help.proofpoint.com/Threat_Insight_Dashboard/Concepts/How_do_I_decode_a_rewritten_URL%3F
+def decode(url, is_proofpoint=False):
+    if url.startswith("http"):
+        if is_proofpoint:
+            url = url.replace("-", "%").replace("_", "/")
+        return unquote(url)
+    return url
+
+
 def main():
     args = parse_args()
+
     for url in args.url:
+        is_proofpoint = url.startswith("https://urldefense.proofpoint.com/v2/")
         parsed_url = urlsplit(url)
         queryparams = parse_qs(parsed_url.query)
         for k, v in queryparams.items():
-            fmt_v = ", ".join(v)
-            print("{} -> {}".format(k, fmt_v))
+            if args.decode:
+                queryvals = [decode(e, is_proofpoint) for e in v]
+            else:
+                queryvals = v
+            fmt_queryvals = ", ".join(queryvals)
+            print("{} -> {}".format(k, fmt_queryvals))
 
 
 if __name__ == "__main__":
