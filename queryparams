@@ -33,6 +33,13 @@ def parse_args():
         help="decode query params when urlencoded",
     )
     parser.add_argument(
+        "--params",
+        type=str,
+        nargs="*",
+        default={},
+        help="which query parameters to display (default: all)",
+    )
+    parser.add_argument(
         "url",
         # type=int,
         nargs="+",
@@ -57,18 +64,20 @@ def decode(url, is_proofpoint=False):
 
 def main():
     args = parse_args()
+    params_to_display = set(args.params)
 
     for url in args.url:
         is_proofpoint = url.startswith("https://urldefense.proofpoint.com/v2/")
         parsed_url = urlsplit(url)
         queryparams = parse_qs(parsed_url.query)
         for k, v in queryparams.items():
-            if args.decode:
-                queryvals = [decode(e, is_proofpoint) for e in v]
-            else:
-                queryvals = v
-            fmt_queryvals = ", ".join(queryvals)
-            print("{} -> {}".format(k, fmt_queryvals))
+            if len(params_to_display) == 0 or k in params_to_display:
+                if args.decode:
+                    queryvals = [decode(e, is_proofpoint) for e in v]
+                else:
+                    queryvals = v
+                fmt_queryvals = ", ".join(queryvals)
+                print("{} -> {}".format(k, fmt_queryvals))
 
 
 if __name__ == "__main__":
