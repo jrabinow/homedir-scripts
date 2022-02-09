@@ -16,6 +16,10 @@ function filestats()
     file="${1}"
     shift
 
+    if [ -d "${file}" ]; then
+        printf 'WARNING: %s is a directory! Incorrect stats incoming!\n' "${file}" >&2
+    fi
+
     txt=$(git blame --date=format:%G --show-email "${file}")
     numlines=$(wc -l <<< "${txt}")
     echo "${numlines} total lines" | sed 's/^\s+//'
