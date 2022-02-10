@@ -1,0 +1,115 @@
+#!/usr/bin/env -S bash
+
+set -e -u
+set -o pipefail
+
+# write some cool doc here
+
+function usage()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]...
+Options: --help, -h: show this help dialog
+         -c CMD: shell command to run; alert when it's done
+         -p PID: watch pid PID and alert on process exit
+EOF
+}
+
+function bellfunc ()
+{
+    cmd=${1}; shift
+
+    if [ -n "${TMUX}" ]; then
+        for _ in {1..3}; do
+            echo -ne '\a'
+            tmux selectp -P bg=red
+            sleep .1
+            tmux selectp -P bg=default
+        done
+    else
+        for _ in $(seq 1 3); do
+            echo -ne '\a'
+            sleep .1
+        done
+    fi
+    case "${OSTYPE}" in
+        darwin*)
+            osascript -e "display notification \"${cmd}\" with title \"Ding!\""
+            ;;
+        *)
+            echo "FIXME NEED NOTIFICATION"
+            ;;
+    esac
+}
+
+function wait_for_exit()
+{
+    pid=${1}; shift
+    cont=true
+    while "${cont}"; do
+        ps -p "${pid}" > /dev/null && cont=true || cont=false
+        sleep 1
+    done
+}
+
+
+function main()
+{
+    run_cmd=false
+    follow_pid=false
+
+    while getopts "c:hp:-:" opt; do
+        case ${opt} in
+            c)
+                run_cmd=true
+                cmd="${OPTARG}"
+                ;;
+            h) # help message
+                usage
+                exit 0
+                ;;
+            p)
+                follow_pid=true
+                pid="${OPTARG}"
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
+    if "${run_cmd}" && "${follow_pid}"; then
+        printf "error: can only use one of -p or -c\n" >&2
+        usage
+        exit 1
+    fi
+
+    if "${run_cmd}"; then
+        eval "${cmd}" || true
+        bellfunc "${cmd}"
+    elif "${follow_pid}"; then
+        wait_for_exit "${pid}"
+        bellfunc "pid ${pid} done"
+    else
+        bellfunc "terminal bell went off!"
+    fi
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
