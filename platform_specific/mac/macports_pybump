@@ -78,7 +78,7 @@ function gen_prtxt ()
     cat << EOF | tee /dev/tty | pbcopy
 #### Description
 
-${pypkg}: add python$(cut -b1 <<< "${pyver}").$(cut -b2- <<< "${pyver}") variant
+${pypkg}: add python$(cut -b1 <<< "${pyver}").$(cut -b2- <<< "${pyver}") subport
 
 ###### Type(s)
 - [ ] bugfix
@@ -151,6 +151,8 @@ function main()
         exit 1
     fi
 
+    grep -E '^file:///tmp/macports-ports \[nosync,default\]$' /opt/local/etc/macports/sources.conf
+    grep -E '^#rsync://rsync.macports.org/macports/release/tarballs/ports.tar \[default\]$' /opt/local/etc/macports/sources.conf
     while [ $# -gt 0 ]; do
         pypkg="${1}"; shift
         upgrade_port "${pypkg}" "${pyver}" "${notests}" "${basebranch}"
