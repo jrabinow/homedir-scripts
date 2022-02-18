@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-'''
+"""
 Search path for binaries with the name foo:
 
 $ pathsearch foo
@@ -10,15 +10,15 @@ prints all binaries with either 'server' or 'smc' in the name
 
 Regexes are accepted:
 $ pathsearch buc.*ild
-'''
+"""
 
 import sys, os, re
 import argparse
 import logging
 
 LOG = logging.getLogger()
-LOG.setLevel('INFO')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+LOG.setLevel("INFO")
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 ch = logging.StreamHandler()
 ch.setFormatter(formatter)
 LOG.addHandler(ch)
@@ -26,36 +26,48 @@ LOG.addHandler(ch)
 
 def parse_args():
     parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        '-d', '--debug',
-        action='store_true',
-        help='enable debug logging information',
+        "-d",
+        "--debug",
+        action="store_true",
+        help="enable debug logging information",
     )
     parser.add_argument(
-        'binaryname',
-        #type=int,
-        nargs='+',
-        help='regex of binary names to search for in PATH'
+        "-l",
+        "--literal",
+        action="store_true",
+        help="enable debug logging information",
+    )
+    parser.add_argument(
+        "binaryname", nargs="+", help="regex of binary names to search for in PATH"
     )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    re_devserver = re.compile("|".join(args.binaryname))
+
+    if args.literal:
+        binaries = [re.escape(b) for b in args.binaryname]
+    else:
+        binaries = args.binaryname
+
+    needle_re = re.compile("|".join(binaries))
     path = os.getenv("PATH")
     for p in path.split(":"):
         try:
-            files = os.listdir(p)
+            matches = [
+                f"{p}/{f}"
+                for f in os.listdir(p)
+                if needle_re.search(f) and os.path.isfile(os.path.join(p, f))
+            ]
+            for m in matches:
+                print(m)
         except OSError:
             sys.stderr.write("no such directory {}\n".format(p))
-            continue
-        for f in files:
-            if re_devserver.search(f) and os.path.isfile(os.path.join(p, f)):
-                print("{}/{}".format(p, f))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
