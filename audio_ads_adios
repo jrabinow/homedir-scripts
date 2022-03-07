@@ -29,6 +29,7 @@ function monitor_and_skip_ads ()
             if [ "${track_id}" == "${old_track_id}" ]; then
                 osascript -e 'tell application "spotify" to next track'
             fi
+            osascript -e 'tell application "spotify" to play'
         fi
         old_track_id="${track_id}"
         sleep 1
