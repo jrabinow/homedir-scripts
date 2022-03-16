@@ -2,7 +2,8 @@
 
 set -e -u -o pipefail
 
-# write some cool doc here
+# upgrade all macports while doing some house cleaning
+# https://stackoverflow.com/a/7491014
 
 function usage ()
 {
@@ -11,6 +12,44 @@ Usage: ${0##*/} [OPTION]...
 Options: -h, --help: show this help dialog
          --no-selfupdate: don't run \`port selfupdate\`
 EOF
+}
+
+
+# don't rebuild all of llvm-13 just because someone thought that whitespace
+# changes in the port file meant the revision number should be bumped.
+# https://github.com/macports/macports-ports/commit/67d5da48b86b45cfe5a6384a97b2f0430a379e0a
+function handle_llvm-13 ()
+{
+    sed -i -E 's/^(revision\s+)1/\10/' "$(port file llvm-13)"
+}
+
+# use python3.10. gcloud command ignores the dependency version anyways and
+# tries to intelligently select the python version on its own. Spoiler alert:
+# this approach is dumb
+# https://github.com/macports/macports-ports/pull/13936
+function handle_google-cloud-sdk ()
+{
+    sed -i -E 's/^python.default_version\s+39$/python.default_version 310/' "$(port file google-cloud-sdk)"
+}
+
+function macports_localchanges ()
+{
+    declare -A freezeports_md5=(
+        ['llvm-13']='1bfd5c1f0ff0639601d11c87879eaf49'
+        ['google-cloud-sdk']='08bae04f6d8371a8fd4c0ef5e571ec57'
+    )
+    for portname in "${!freezeports_md5[@]}"; do
+        portfile="$(port file "${portname}")"
+        portfile_md5_actual="$(md5sum "${portfile}"|awk '{print $1}')"
+        portfile_md5_expected="${freezeports_md5[${portname}]}"
+        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ]; then
+            echo "${portname} updated!"
+            vim -O "$0" "${portfile}"
+        else
+            # https://stackoverflow.com/a/33387433
+            handle_"${portname}"
+        fi
+    done
 }
 
 function main()
@@ -45,13 +84,14 @@ function main()
         esac
     done
     if "${run_port_selfupdate}"; then
-        sudo port selfupdate
+        port selfupdate
     fi
-    sudo port upgrade outdated
-    sudo port uninstall leaves || true
-    sudo port uninstall inactive || true
-    sudo port uninstall rleaves || true
-    sudo port reclaim || true
+    macports_localchanges
+    port upgrade outdated
+    port uninstall leaves || true
+    port uninstall inactive || true
+    port uninstall rleaves || true
+    port reclaim || true
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
