@@ -1,7 +1,7 @@
 *.swp
 /banner
 /exitcodes
-/dnf_update
+/macports_update
 /imgcat
 /codemod
 /timemachine
