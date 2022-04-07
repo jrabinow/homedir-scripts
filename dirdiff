@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 import os
+import stat
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
@@ -69,17 +70,17 @@ def parse_args():
         help="enable debug logging information",
     )
     parser.add_argument(
-        "--hide-modified",
+        "--ignore-modified",
         action="store_true",
         help="don't show files that were modified",
     )
     parser.add_argument(
-        "--hide-moved",
+        "--ignore-moved",
         action="store_true",
         help="don't show files that were moved around",
     )
     parser.add_argument(
-        "--hide-additional",
+        "--ignore-additional",
         action="store_true",
         help="don't show files if they weren't either moved or modified",
     )
@@ -121,14 +122,18 @@ def apply_to_dir(dirpath, func):
 def file_hexdigest(filepath):
     hasher = hashlib.sha1()
     BUFSIZ = 65536
-    # try:
-    with open(filepath, "rb") as f:
-        buf = f.read(BUFSIZ)
-        while len(buf) > 0:
-            hasher.update(buf)
+    try:
+        with open(filepath, "rb") as f:
             buf = f.read(BUFSIZ)
-    # except:
-    #    hasher.update(b"")
+            while len(buf) > 0:
+                hasher.update(buf)
+                buf = f.read(BUFSIZ)
+    except FileNotFoundError as e:
+        # if this is a symlink
+        if stat.S_ISLNK(os.lstat(filepath).st_mode):
+            hasher.update(b"")
+        else:
+            raise
     return hasher.hexdigest()
 
 
@@ -166,12 +171,20 @@ def partition_matched_unmatched(
     # Otherwise, barfile1 is unmatched.
     len_rootdirs = len(rootdirs)
     for hexdigest, filedata in hashdiff_data.items():
+        # unmatched_iter = {}
         for _, filelist in filedata.items():
             if len(filelist) == len_rootdirs:
+                assert (
+                    len({f.rootdir for f in filelist}) == len_rootdirs
+                    and len({f.hexdigest for f in filelist}) == 1
+                    and len({f.position for f in filelist}) == 1
+                ), ("matching error: %s" % filelist)
                 matched[hexdigest].extend(filelist)
             else:
                 for f in filelist:
                     unmatched[f.hexdigest].append(f)
+        # for f in unmatched_iter.values():
+        #    unmatched[f.hexdigest].append(f)
 
     return matched, unmatched
 
@@ -229,22 +242,25 @@ def print_results(
 ):
     output_dict = {
         "modified": {str(k): v for k, v in modified.items()}
-        if not args.hide_modified
+        if not args.ignore_modified
         else {},
-        "moved": moved if not args.hide_moved else [],
-        "added": additional if not args.hide_additional else [],
+        "moved": moved if not args.ignore_moved else [],
+        "added": additional if not args.ignore_additional else [],
     }
 
     if args.json:
         print(json.dumps(output_dict, indent=2, cls=JSONEncoder))
     else:
+        print("modified files:")
         for filepath in output_dict["modified"]:
-            print(f"modified: {filepath}")
+            print(filepath)
+        print("moved/renamed files:")
         for ren in output_dict["moved"]:
-            moved_str = ", ".join([str(f.absolute) for f in ren])
-            print(f"moved/renamed: {moved_str}")
+            moved_str = "\t".join([str(f.absolute) for f in ren])
+            print(moved_str)
+        print("additional files:")
         for add in output_dict["added"]:
-            print(f"added: {add.absolute}")
+            print(add.absolute)
 
 
 def main():
