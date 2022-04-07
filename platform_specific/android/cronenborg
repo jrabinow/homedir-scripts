@@ -10,7 +10,7 @@ set -o pipefail
 # enough size
 # - install https://f-droid.org/en/packages/it.faerb.crond/
 # - install https://f-droid.org/en/packages/com.termux/
-# - launch termux, install borgbackup and jq
+# - launch termux, install borgbackup
 # - make sure your miscro-sd card is mounted on the phone, see
 #   https://github.com/jrabinow/homedir-scripts/blob/main/platform_specific/android/luksmount
 # - save https://github.com/jrabinow/droidscripts/blob/main/termux_cronwrap.sh to
@@ -56,6 +56,39 @@ function verify_is_mounted ()
     mount|grep "${PARTLABEL} on ${MOUNTPOINT} type ext4" >/dev/null
 }
 
+function archive_name ()
+{
+    backuptype="${1}"; shift
+    user="${1}"; shift
+    archive_ts="${1}"; shift
+
+    echo "u${user}_${backuptype}_${archive_ts}"
+}
+
+function backup ()
+{
+    backuptype="${1}"; shift
+    datadir="${1}"; shift
+    user="${1}"; shift
+    archive_ts="${1}"; shift
+
+    archive_name="$(archive_name "${backuptype}" "${user}" "${archive_ts}")"
+    full_repo_path="${REPO_PATH}/${user}/${backuptype}.borg"
+    full_archive_path="${full_repo_path}::${archive_name}"
+
+    verify_is_mounted
+
+    if [ ! -d "${full_repo_path}" ]; then
+        mkdir -p "${full_repo_path}"
+        # timeout after 10min
+
+        timeout 600 borg init "${full_repo_path}"
+    fi
+    # abort after 3 hours == 10800 seconds
+    timeout 10800 borg create -e Android "${full_archive_path}" "${datadir}/${user}"
+    timeout 10800 borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
+}
+
 function main()
 {
     user=0
@@ -90,23 +123,16 @@ function main()
     [[ ${1:-} == '--' ]] && shift
 
     archive_ts="$(date +"%Y-%m-%d-%H-%M-%S")"
-    archive_name="u${user}_storage_${archive_ts}"
-    full_repo_path="${REPO_PATH}/${user}/storage.borg"
-    full_archive_path="${full_repo_path}::${archive_name}"
 
     verify_is_mounted
 
     if battery_status; then
-        if [ ! -d "${full_repo_path}" ]; then
-            mkdir -p "${full_repo_path}"
-            # timeout after 10min
-
-            timeout 600 borg init "${full_repo_path}"
+        backup storage /storage/emulated "${user}" "${archive_ts}"
+        backup appdata REPLACEME "${user}" "${archive_ts}"
+        if [ "$(date +%A)" == "Sunday" ]; then
+            backup apks REPLACEME "${user}" "${archive_ts}"
         fi
-        # abort after 3 hours == 10800 seconds
-        timeout 10800 borg create -e Android "${full_archive_path}" "/storage/emulated/${user}"
-        timeout 10800 borg prune --keep-last 1 --keep-minutely 60 -H 24 -d 7 -w 4 -m 12 -y 10 "${full_repo_path}"
-        gen_notification "cronenborg" "${archive_name} successfully created for user ${user}"
+        gen_notification "cronenborg" "${archive_name} successful run for user ${user}\nCreated the following archives:\n$(archive_name storage "${user}" "${archive_ts}")\n$(archive_name appdata "${user}" "${archive_ts}")\n$(archive_name storage "${user}" "${archive_ts}")\n"
     else
         gen_notification "cronenborg" "battery not charging and too low, skipping for user ${user}"
     fi
