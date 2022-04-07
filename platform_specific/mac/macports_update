@@ -36,7 +36,7 @@ function macports_localchanges ()
 {
     declare -A freezeports_md5=(
         ['llvm-13']='1bfd5c1f0ff0639601d11c87879eaf49'
-        ['google-cloud-sdk']='08bae04f6d8371a8fd4c0ef5e571ec57'
+        ['google-cloud-sdk']='48fb36594f57e9330f1accc216dec322'
     )
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"

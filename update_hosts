@@ -82,6 +82,8 @@ EOM
         "^open.spotify.com$"
         "^googlehosted.l.googleusercontent.com"
         "^pi.pardot.com$"
+        "^rocketreach.co$"
+        "^login.microsoftonline.com$"
     )
 
     adservers="

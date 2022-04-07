@@ -29,6 +29,8 @@ function main()
         .CFUserTextEncoding
         .cgobanrc
         .config/abrt
+        .config/asciinema
+        .config/binwalk
         ".config/chromium/Default/Local Storage"
         .config/cinnamon-session
         .config/clipit
@@ -40,6 +42,7 @@ function main()
         .config/evince
         .config/evolution
         .config/filezilla
+        .config/gcloud
         .config/gconf
         .config/gedit
         .config/gnome-disk-utility
@@ -54,12 +57,14 @@ function main()
         .config/htop
         .config/ibus
         .config/imsettings
+        .config/iTerm2
         .config/kazam
         .config/lftp
         .config/libreoffice
         .config/libvirt
         .config/menus
         .config/nautilus
+        .config/neofetch
         .config/octave
         .config/procps
         .config/qvm-mru-filecopy
@@ -76,9 +81,11 @@ function main()
         .cups
         .dbus
         .ddd
+        .designer
         .dlv
         .dreamchess
         .docker
+        .DS_Store
         .dvdcss
         .eclipse
         .elinks
@@ -182,6 +189,7 @@ function main()
         .Trash
         .update-notifier
         .vidalia
+        .w3m
         .wireshark
         .yarn
     )
@@ -268,6 +276,7 @@ function main()
     # separately to avoid any array issues
     #rm -rf $HOME/.android/!(avd)
 
+    # OSX is lame
     if [[ "${OSTYPE}" =~ darwin ]]; then
         test -d ~/.Trash && /bin/chmod -N ~/.Trash
     fi
