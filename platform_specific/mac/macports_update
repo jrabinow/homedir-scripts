@@ -20,7 +20,8 @@ EOF
 # https://github.com/macports/macports-ports/commit/67d5da48b86b45cfe5a6384a97b2f0430a379e0a
 function handle_llvm-13 ()
 {
-    sed -i -E 's/^(revision\s+)1/\10/' "$(port file llvm-13)"
+    portfile="${1}"; shift
+    sed -i -E 's/^(revision\s+)1/\10/' "${portfile}"
 }
 
 # use python3.10. gcloud command ignores the dependency version anyways and
@@ -29,7 +30,8 @@ function handle_llvm-13 ()
 # https://github.com/macports/macports-ports/pull/13936
 function handle_google-cloud-sdk ()
 {
-    sed -i -E 's/^python.default_version\s+39$/python.default_version 310/' "$(port file google-cloud-sdk)"
+    portfile="${1}"; shift
+    sed -i -E 's/^python.default_version\s+39$/python.default_version 310/' "${portfile}"
 }
 
 function macports_localchanges ()
@@ -43,11 +45,14 @@ function macports_localchanges ()
         portfile_md5_actual="$(md5sum "${portfile}"|awk '{print $1}')"
         portfile_md5_expected="${freezeports_md5[${portname}]}"
         if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ]; then
+            tmpfile=$(mktemp)
             echo "${portname} updated!"
-            vim -O "$0" "${portfile}"
+            echo -e "\"m\tLINE\t0\n\t        ['${portname}']='$(md5sum "${portfile}"|awk '{print $1}')'" > "${tmpfile}"
+            vim -i "${tmpfile}" -O "$0" "${portfile}"
+            rm "${tmpfile}"
         else
             # https://stackoverflow.com/a/33387433
-            handle_"${portname}"
+            handle_"${portname}" "${portfile}"
         fi
     done
 }
