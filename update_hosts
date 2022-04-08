@@ -55,7 +55,6 @@ function enable()
 127.0.0.1    ads.pubmatic.com
 127.0.0.1    idsync-ext.rlcdn.com
 127.0.0.1    www.googletagservices.com
-127.0.0.1    googlehosted.l.googleusercontent.com
 127.0.0.1    d361oi6ppvq2ym.cloudfront.net
 127.0.0.1    gads.pubmatic.com
 127.0.0.1    ads-west-colo.adsymptotic.com
@@ -80,10 +79,10 @@ EOM
     # api.mixpanel.com will still be blocked
     whitelist=(
         "^open.spotify.com$"
-        "^googlehosted.l.googleusercontent.com"
         "^pi.pardot.com$"
         "^rocketreach.co$"
         "^login.microsoftonline.com$"
+        "^lnks.gd$"
     )
 
     adservers="
@@ -115,8 +114,8 @@ EOM
             > "${newhosts}"
     # remove whitelisted lines
     for w in "${whitelist[@]}"; do
-        pattern="${w//\^/127.0.0.1   }"
-        sed -i "/${pattern}/d" "${newhosts}"
+        pattern="${w/\^/127.0.0.1\\s+}"
+        sed -i -E "/${pattern}/d" "${newhosts}"
     done
     # shellcheck disable=SC2024
     sudo tee /etc/hosts < /etc/hosts.orig > /dev/null
