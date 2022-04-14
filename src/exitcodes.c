@@ -3,9 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef __linux__
-#include <closeout.h>
-#endif
 
 typedef struct {
   int optind;
@@ -55,10 +52,6 @@ ParsedArgs parse_args(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
   int i = 0, exitcode = -1;
   const char *errmsg = NULL;
-
-#ifdef __linux__
-  atexit(close_stdout);
-#endif
 
   ParsedArgs parsed_args = parse_args(argc, argv);
   argc -= parsed_args.optind;

@@ -6,7 +6,10 @@ else
 	OSXCPUTEMP_BUILD := @echo "Skipping osxcputemp"
 endif
 
-all: htmlparser osxcputemp
+all: checkout htmlparser osxcputemp
+
+checkout:
+	git submodule update --init
 
 htmlparser:
 	test -x ~/bin/htmlparser || (cd htmlparser && go build && ln -s ~/bin/thirdparty/htmlparser ~/bin)

@@ -1,6 +1,6 @@
 all: exitcodes banner
 
-install:
+install: all
 	mv exitcodes banner ~/bin/ && cd thirdparty && $(MAKE)
 
 clean:
