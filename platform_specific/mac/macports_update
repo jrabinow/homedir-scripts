@@ -14,15 +14,13 @@ Options: -h, --help: show this help dialog
 EOF
 }
 
-
-# don't rebuild all of llvm-13 just because someone thought that whitespace
-# changes in the port file meant the revision number should be bumped.
-# https://github.com/macports/macports-ports/commit/67d5da48b86b45cfe5a6384a97b2f0430a379e0a
-function handle_llvm-13 ()
+# no point keeping the old compiler around when the new one does the job just fine
+function handle_qt5-qttools ()
 {
     portfile="${1}"; shift
-    sed -i -E 's/^(revision\s+)1/\10/' "${portfile}"
+    sed -i -E 's/^set llvm_version 13$/set llvm_version 14/' "${portfile}"
 }
+
 
 # use python3.10. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
@@ -37,8 +35,8 @@ function handle_google-cloud-sdk ()
 function macports_localchanges ()
 {
     declare -A freezeports_md5=(
-        ['llvm-13']='1bfd5c1f0ff0639601d11c87879eaf49'
-        ['google-cloud-sdk']='48fb36594f57e9330f1accc216dec322'
+        ['google-cloud-sdk']='9bd124e25b0dd76c708d4c0643205d5a'
+        ['qt5-qttools']='c2f49ca3b3621a916b28dd85e9da98de'
     )
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
