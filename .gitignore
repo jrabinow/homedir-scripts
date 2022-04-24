@@ -5,9 +5,10 @@
 /exitcodes
 /htmlparser
 /imgcat
+/ip
 /luksmount
 /macports_pybump
 /macports_update
 /osx-cpu-temp
+/reset_mtimes.py
 /timemachine
-reset_mtimes.py

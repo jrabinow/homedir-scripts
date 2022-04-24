@@ -7,6 +7,8 @@ set -o pipefail
 
 function main()
 {
+    #ps -A|grep -E '\b[zZ]\b'|awk '{print $2}'|tee|xargs -r kill
+
     # shellcheck disable=SC2009
     processes=$(ps aux | grep -E '\s+[zZ]\s+')
     if [ -n "${processes}" ]; then
