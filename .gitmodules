@@ -4,9 +4,9 @@
 [submodule "thirdparty/sack"]
 	path = src/thirdparty/sack
 	url = https://github.com/garaud/sack
-[submodule "thirdparty/iproute2mac"]
-	path = src/thirdparty/iproute2mac
-	url = https://github.com/brona/iproute2mac.git
 [submodule "thirdparty/htmlparser"]
 	path = src/thirdparty/htmlparser
 	url = https://github.com/htmlparser/htmlparser
+[submodule "thirdparty/iproute2mac"]
+	path = src/thirdparty/iproute2mac
+	url = https://github.com/brona/iproute2mac.git
