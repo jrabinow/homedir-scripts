@@ -1,11 +1,17 @@
 #!/usr/bin/env -S bash
 
-set -e -u
-set -o pipefail
-
 # Auto-kill+restart spotify when it tries to play an ad. This script will keep
 # running in the background and will automatically stop running when spotify
 # stops running
+
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+set -e -u
+set -o pipefail
 
 function usage()
 {
