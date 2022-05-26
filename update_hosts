@@ -23,7 +23,6 @@ function enable()
 # running update_hosts
 
 127.0.0.1    gads.pubmatic.com
-127.0.0.1    spclient.wg.spotify.com
 127.0.0.1    media-match.com
 127.0.0.1    adclick.g.doublecklick.net
 127.0.0.1    www.googleadservices.com
