@@ -59,14 +59,15 @@ function main()
     shift
 
     # shellcheck disable=SC2034
-    readonly local pdf_file_name
+    local pdf_file_name
     pdf_file_name=$(basename "${pdf_file}" .pdf)
+    readonly pdf_file_name
 
-    if command -v pdftoppm > /dev/null 2>&1; then
+    if ! command -v pdftoppm > /dev/null 2>&1; then
         printf "pdftoppm not found; need to install poppler https://en.wikipedia.org/wiki/Poppler_(software)\n"
         exit 1
     fi
-    if command -v tesseract > /dev/null 2>&1; then
+    if ! command -v tesseract > /dev/null 2>&1; then
         printf "tesseract not found; need to install tesseract and the language pack your pdf is in https://en.wikipedia.org/wiki/Tesseract_(software)\n"
         exit 1
     fi
