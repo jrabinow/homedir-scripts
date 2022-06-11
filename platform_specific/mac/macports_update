@@ -5,6 +5,13 @@ set -e -u -o pipefail
 # upgrade all macports while doing some house cleaning
 # https://stackoverflow.com/a/7491014
 
+# freezeports_hashes file format:
+# $ cat ~/.local/share/macports/freezeports_hashes
+# dd94e2d3e7eed7f7bfcc1b3f0afb3835    google-cloud-sdk
+# 43bf28556dfc9b534d5cc4fd08662a30    qt5-qttools
+FREEZEPORTS_HASHES="${XDG_DATA_DIR:-${HOME}/.local/share/macports/freezeports_hashes}"
+readonly FREEZEPORTS_HASHES
+
 function usage ()
 {
     cat << EOF
@@ -32,12 +39,23 @@ function handle_google-cloud-sdk ()
     sed -i -E 's/^python.default_version\s+39$/python.default_version 310/' "${portfile}"
 }
 
+function readhash ()
+{
+    local portname="${1}"; shift
+
+    # https://unix.stackexchange.com/a/462089
+    declare -n hashes="freezeports_md5"
+    # shellcheck disable=SC2034
+    hashes["${portname}"]="$(awk "/${portname}/ {print \$1}" "${FREEZEPORTS_HASHES}")"
+}
+
 function macports_localchanges ()
 {
-    declare -A freezeports_md5=(
-        ['google-cloud-sdk']='9bd124e25b0dd76c708d4c0643205d5a'
-        ['qt5-qttools']='c2f49ca3b3621a916b28dd85e9da98de'
-    )
+    declare -A freezeports_md5=()
+
+    readhash google-cloud-sdk
+    readhash qt5-qttools
+
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
         portfile_md5_actual="$(md5sum "${portfile}"|awk '{print $1}')"
@@ -45,8 +63,8 @@ function macports_localchanges ()
         if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
-            echo -e "\"m\tLINE\t0\n\t        ['${portname}']='$(md5sum "${portfile}"|awk '{print $1}')'" > "${tmpfile}"
-            vim -i "${tmpfile}" -O "$0" "${portfile}"
+            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}"|awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
+            vim -i "${tmpfile}" -O "${FREEZEPORTS_HASHES}" "${portfile}"
             rm "${tmpfile}"
         else
             # https://stackoverflow.com/a/33387433
