@@ -21,14 +21,6 @@ Options: -h, --help: show this help dialog
 EOF
 }
 
-# no point keeping the old compiler around when the new one does the job just fine
-function handle_qt5-qttools ()
-{
-    portfile="${1}"; shift
-    sed -i -E 's/^set llvm_version 13$/set llvm_version 14/' "${portfile}"
-}
-
-
 # use python3.10. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
@@ -54,7 +46,6 @@ function macports_localchanges ()
     declare -A freezeports_md5=()
 
     readhash google-cloud-sdk
-    readhash qt5-qttools
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
