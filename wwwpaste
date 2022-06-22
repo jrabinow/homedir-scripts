@@ -62,6 +62,11 @@ function main()
                 test -r "${file}" && curl -X POST "https://paste.rs/" --data-binary "@${file}"
             fi
             ;;
+        delete)
+            id="${1##https://paste.rs/}"
+            shift
+            curl -X DELETE "https://paste.rs/${id}"
+            ;;
         *)
             usage
             ;;
