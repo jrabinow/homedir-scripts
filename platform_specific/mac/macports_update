@@ -28,7 +28,7 @@ EOF
 function handle_google-cloud-sdk ()
 {
     portfile="${1}"; shift
-    sed -i -E 's/^python.default_version\s+39$/python.default_version 310/' "${portfile}"
+    sed -i -E 's/^python.default_version\s+37$/python.default_version 310/' "${portfile}"
 }
 
 function readhash ()
@@ -44,6 +44,7 @@ function readhash ()
 function macports_localchanges ()
 {
     declare -A freezeports_md5=()
+    declare -A skip_port_md5="google-cloud-sdk"
 
     readhash google-cloud-sdk
 
@@ -51,7 +52,8 @@ function macports_localchanges ()
         portfile="$(port file "${portname}")"
         portfile_md5_actual="$(md5sum "${portfile}"|awk '{print $1}')"
         portfile_md5_expected="${freezeports_md5[${portname}]}"
-        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ]; then
+        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ] && \
+            [[ ! ".*${portname}.*" =~ "${skip_port_md5}" ]]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
             echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}"|awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
