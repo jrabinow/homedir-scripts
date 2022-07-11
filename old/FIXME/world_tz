@@ -7,14 +7,19 @@ set -o pipefail
 
 function main()
 {
+    if [ $# -ge 1 ]; then
+        dateparam="${*}"
+    else
+        dateparam=""
+    fi
+
     tzs=(
         Current
-        America/Chicago
         America/New_York
-        Asia/Singapore
-        Asia/Tel_Aviv
         Europe/London
         Europe/Paris
+        Europe/Warsaw
+        Asia/Tel_Aviv
     )
 
     max_tz_len()
@@ -32,13 +37,21 @@ function main()
         printf "%${len}s: " "$tz"
 
         if [[ $tz == Current ]]; then
-            date
+            if [ -n "${dateparam}" ]; then
+                date "+%a %Y-%m-%d %T %z" ${dateparam}
+            else
+                date "+%a %Y-%m-%d %T %z"
+            fi
         else
-            TZ="$tz" date
+            if [ -n "${dateparam}" ]; then
+                TZ="${tz}" date "+%a %Y-%m-%d %T %z" ${dateparam}
+            else
+                TZ="$tz" date "+%a %Y-%m-%d %T %z"
+            fi
         fi
     done
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
-    main "$@"
+    main "$*"
 fi
