@@ -118,6 +118,7 @@ function main()
         .grip
         .gstreamer-0.10
         .gvfs
+        .hawtjni
         .hedgewars
         .hex
         .icedtea
@@ -186,6 +187,7 @@ function main()
         .scala_history
         .sqlite_history
         .sunstudio
+        .swiftpm
         .swt
         .terraform.d
         .texlive2020
@@ -251,6 +253,7 @@ function main()
         .sudo_as_admin_successful
         .tilp
         .v8flags*
+        .vault-token
         .vim/.netrwhist
         .viminfo
         .wget-hsts

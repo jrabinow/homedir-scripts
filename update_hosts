@@ -82,6 +82,7 @@ EOM
         "^rocketreach.co$"
         "^login.microsoftonline.com$"
         "^lnks.gd$"
+        "^newrelic.com$"
     )
 
     adservers="

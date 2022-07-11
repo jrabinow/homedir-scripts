@@ -44,7 +44,7 @@ function upgrade_port()
     branchname="${pypkg}_py${pyver}"
     git br -d "${branchname}" || true
     git cob "${branchname}"
-    git co stash@{0} -- "./python/${pypkg}" || true
+    git co 'stash@{0}' -- "./python/${pypkg}" || true
     if [ "$(git st --short|wc -l)" == 0 ]; then
         portfile_add_pyversion "${pypkg}" "${pyver}"
     fi
@@ -163,7 +163,7 @@ function main()
         upgrade_port "${pypkg}" "${pyver}" "${notests}" "${basebranch}"
         gen_prtxt "${pypkg}" "${pyver}"
         if [ $# -gt 0 ]; then
-            read -p "Create github PR now. Press [ENTER] when done "
+            read -rp "Create github PR now. Press [ENTER] when done "
         fi
     done
 

@@ -21,7 +21,8 @@ set -o pipefail
 
 
 readonly PARTLABEL=microsd_luks
-readonly PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export|grep '^UUID'|cut -d= -f2)"
+PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export|grep '^UUID'|cut -d= -f2)"
+readonly PARTUUID
 readonly MOUNTPOINT="/mnt/media_rw/${PARTUUID}"
 readonly REPO_PATH="${MOUNTPOINT}/archive"
 readonly BATT_MIN_PERCENTAGE=30
