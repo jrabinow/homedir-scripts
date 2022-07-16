@@ -25,16 +25,6 @@ EOF
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
 # https://github.com/macports/macports-ports/pull/13936
-function handle_py310-awscli2 ()
-{
-    portfile="${1}"; shift
-    sed -i -E 's/^python.versions\s+38\s+39$/python.versions 38 39 310/' "${portfile}"
-}
-
-# use python3.10. gcloud command ignores the dependency version anyways and
-# tries to intelligently select the python version on its own. Spoiler alert:
-# this approach is dumb
-# https://github.com/macports/macports-ports/pull/13936
 function handle_google-cloud-sdk ()
 {
     portfile="${1}"; shift
@@ -57,7 +47,6 @@ function macports_localchanges ()
     declare -A skip_port_md5="google-cloud-sdk"
 
     readhash google-cloud-sdk
-    readhash py310-awscli2
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
