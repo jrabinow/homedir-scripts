@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+
+# updates all git repos in directory
+
+set -e -u
+set -o pipefail
+
+function elem_in () {
+    local e match="$1"
+    shift
+    for e; do [[ "$e" == "$match" ]] && return 0; done
+    return 1
+}
+
+# https://github.com/jrabinow/dotfiles/blob/6e821e959b5261f2db43cde1b10d40c689f5e33e/.config/git/config#L28
+function get_github_token()
+{
+    git config --get-all credential.helper| \
+        awk '/store --file/ {print $NF}'| \
+        xargs -I% sh -c "cat %"| \
+        grep -oP '(?<=:)[a-zA-Z0-9_]*(?=@)'
+}
+
+# python requests version: https://stackoverflow.com/a/63720399
+# conversion to curl by dumping python: https://stackoverflow.com/a/16630836
+function github_authheader()
+{
+    local orgname="${1}"; shift
+    local github_token="${1}"; shift
+    local b64_token
+    b64_token="$(echo -n "${orgname}:${github_token}"|base64)"
+    echo "Authorization: Basic ${b64_token}"
+}
+
+function update_existing_repos ()
+{
+    local jobox_dir="${1}"; shift
+    local force_dirty="${1}"; shift
+    local gitargs="${*}"
+
+    for subdir in *; do
+        { test -d "${subdir}/.git" && ! elem_in "${subdir}" "${IGNORE_REPOS[@]}"; } || continue
+        cd "${subdir}"
+        local repostatus
+        repostatus=$(git status --short|grep -v '^??'||true)
+        if [ -z "${repostatus}" ]; then
+            printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
+            # we intentionally do not quote below to allow word splitting
+            # shellcheck disable=SC2086
+            git ${gitargs}
+        elif "${force_dirty}"; then
+            printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
+            # we intentionally do not quote below to allow word splitting
+            # shellcheck disable=SC2086
+            git ${gitargs}
+        else
+            printf "\033[31m=========== DIRTY REPO %s ==========\033[0m\n" "${subdir}"
+        fi
+        cd "${jobox_dir}"
+    done
+}
+
+function clone_any_missing_repos()
+{
+    local ORGNAME="${1}"
+    local IGNORE_REPOS=(
+        nginx
+        react-csv
+    )
+    local org_url
+    local org_repos_url
+    local repos_out
+    local response_len
+    local repo_names
+    local dirname
+    local page
+
+    readonly ORGNAME
+    readonly IGNORE_REPOS
+
+    org_url="https://api.github.com/orgs/${ORGNAME}"
+    org_repos_url="$(curl -s "${org_url}"|jq -r '.repos_url')?type=all&per_page=100"
+
+
+    (( page=1 ))
+    local token
+    local authheader
+
+    token="$(get_github_token)"
+    authheader="$(github_authheader "${ORGNAME}" "${token}")"
+
+    while : ; do
+        repos_out="$(curl -s -H "${authheader}" "${org_repos_url}&page=${page}")"
+        repo_names="$(jq -r '.[].clone_url' <<< "${repos_out}")"
+
+        for repo in ${repo_names}; do
+            dirname="$(basename "${repo}" .git)"
+            if [ ! -d "${dirname}" ] && ! elem_in "${dirname}" "${IGNORE_REPOS[@]}"  ; then
+                echo "MISSING ${dirname}; cloning"
+                git clone "${repo}"
+            fi
+        done
+
+        (( page+=1 ))
+        response_len=$(jq '.|length' <<< "${repos_out}")
+        [ "${response_len}" -ge 1 ] || break
+    done
+}
+
+function main ()
+{
+    local JOBOX_DIR=${JOBOX:-$HOME/src/jobox}
+    local JOBOX_TEAM_NAME="jobox-team"
+    local FORCE_DIRTY=false
+    local GITARGS=""
+
+    readonly JOBOX_DIR
+    readonly JOBOX_TEAM_NAME
+
+    while getopts "fh-" opt; do
+        case ${opt} in
+            f)  # force operation on dirty repos
+                FORCE_DIRTY=true
+                shift
+                ;;
+            h)  # help message
+                cat << EOF
+Usage: $(basename "${0}") [OPTION]...
+Options: -f: update dirty repos
+         -h: show this help dialog
+EOF
+                exit 0
+                ;;
+            -)
+                GITARGS="${*}"
+                shift $#
+                ;;
+            ?)
+                printf "Unknown option, exiting now\n" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ $# -ge 1 ] || [ -z "${GITARGS}" ]; then
+        GITARGS="${*:-pull}"
+    fi
+
+    readonly FORCE_DIRTY
+    readonly GITARGS
+
+    cd "${JOBOX_DIR}"
+
+    if [ "${GITARGS}" == "pull" ]; then
+        clone_any_missing_repos "${JOBOX_TEAM_NAME}"
+    fi
+    update_existing_repos "${JOBOX_DIR}" "${FORCE_DIRTY}" "${GITARGS}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
