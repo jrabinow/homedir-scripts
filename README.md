@@ -8,3 +8,6 @@ QUICK AND DIRTY HACKS. IF YOU DESTROY YOUR PC OR PHONE YOU HAVE NO ONE TO BLAME
 BUT YOURSELF.
 
 Consider yourself warned
+
+# Setup:
+cd ./src; make; make install
