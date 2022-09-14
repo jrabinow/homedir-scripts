@@ -65,6 +65,12 @@ function handle_exa ()
     set_param "${portfile}" revision 2
 }
 
+function handle_mariadb-10.8()
+{
+    portfile="${1}"; shift
+    sed -i -E 's/^(version\s+)10.8.4$/\110.8.3/' "${portfile}"
+}
+
 function readhash ()
 {
     local portname="${1}"; shift
@@ -85,6 +91,7 @@ function macports_localchanges ()
     #readhash bashdb
     readhash exa
     readhash shellcheck
+    readhash mariadb-10.8
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
