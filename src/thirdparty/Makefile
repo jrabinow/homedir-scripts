@@ -6,12 +6,17 @@ else
 	OSXCPUTEMP_BUILD := @echo "Skipping osxcputemp"
 endif
 
-all: checkout osxcputemp
+all: checkout osxcputemp sack
 
 checkout:
 	git submodule update --init
 
 osxcputemp:
 	$(OSXCPUTEMP_BUILD)
+
+sack:
+	for binary in sag sack sgrep srg ; do \
+		cd ~/bin; ln -sf ./src/thirdparty/sack/$$binary . ; cd - ; \
+	done
 
 .PHONY: sack osxcputemp
