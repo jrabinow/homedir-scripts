@@ -21,6 +21,29 @@ Options: -h, --help: show this help dialog
 EOF
 }
 
+function set_param ()
+{
+    portfile="${1}"; shift
+    param="${1}"; shift
+    value="${1}"; shift
+    sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
+}
+
+function handle_shellcheck ()
+{
+    portfile="${1}"; shift
+    set_param "${portfile}" revision 1
+}
+
+# Looks like some historical cruft here, let's make sure and then change the dependencies
+# https://github.com/macports/macports-ports/pull/3386#issuecomment-453184996
+# https://trac.macports.org/ticket/57871
+#function handle_bashdb ()
+#{
+#    portfile="${1}"; shift
+#    sed -i -E 's/port:bash50$/port:bash/' "${portfile}"
+#}
+
 # use python3.10. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
@@ -28,7 +51,18 @@ EOF
 function handle_google-cloud-sdk ()
 {
     portfile="${1}"; shift
-    sed -i -E 's/^python.default_version\s+37$/python.default_version 310/' "${portfile}"
+    py_version=3.10
+    set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
+    # disable patches
+    sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
+    sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
+}
+
+# exa build currently broken
+function handle_exa ()
+{
+    portfile="${1}"; shift
+    set_param "${portfile}" revision 2
 }
 
 function readhash ()
@@ -44,9 +78,13 @@ function readhash ()
 function macports_localchanges ()
 {
     declare -A freezeports_md5=()
+    # these ports change often and won't be fixed soon
     declare -A skip_port_md5="google-cloud-sdk"
 
     readhash google-cloud-sdk
+    #readhash bashdb
+    readhash exa
+    readhash shellcheck
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
@@ -64,6 +102,18 @@ function macports_localchanges ()
             handle_"${portname}" "${portfile}"
         fi
     done
+}
+
+function postinstall_tasks ()
+{
+    # google-cloud-sdk is built remotely, updating the portfile changes nothing T_T
+    port contents google-cloud-sdk | \
+        grep /opt/local/bin | \
+        xargs readlink | \
+        xargs -I% file /opt/local/bin/% | \
+        grep 'POSIX shell script' | \
+        cut -d: -f1 | \
+        xargs sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.10/\2python3.10|'
 }
 
 function main()
@@ -106,6 +156,7 @@ function main()
     port uninstall inactive || true
     port uninstall rleaves || true
     port reclaim || true
+    postinstall_tasks
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
