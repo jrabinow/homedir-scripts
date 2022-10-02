@@ -29,21 +29,6 @@ function set_param ()
     sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
 }
 
-function handle_shellcheck ()
-{
-    portfile="${1}"; shift
-    set_param "${portfile}" revision 1
-}
-
-# Looks like some historical cruft here, let's make sure and then change the dependencies
-# https://github.com/macports/macports-ports/pull/3386#issuecomment-453184996
-# https://trac.macports.org/ticket/57871
-#function handle_bashdb ()
-#{
-#    portfile="${1}"; shift
-#    sed -i -E 's/port:bash50$/port:bash/' "${portfile}"
-#}
-
 # use python3.10. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
@@ -56,19 +41,6 @@ function handle_google-cloud-sdk ()
     # disable patches
     sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
     sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
-}
-
-# exa build currently broken
-function handle_exa ()
-{
-    portfile="${1}"; shift
-    set_param "${portfile}" revision 2
-}
-
-function handle_mariadb-10.8()
-{
-    portfile="${1}"; shift
-    sed -i -E 's/^(version\s+)10.8.4$/\110.8.3/' "${portfile}"
 }
 
 function readhash ()
@@ -88,10 +60,6 @@ function macports_localchanges ()
     declare -A skip_port_md5="google-cloud-sdk"
 
     readhash google-cloud-sdk
-    #readhash bashdb
-    readhash exa
-    readhash shellcheck
-    readhash mariadb-10.8
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"

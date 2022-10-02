@@ -5,6 +5,12 @@
 set -e -u
 set -o pipefail
 
+readonly IGNORE_REPOS=(
+    nginx
+    react-csv
+    kilikyctest
+)
+
 function elem_in () {
     local e match="$1"
     shift
@@ -63,10 +69,6 @@ function update_existing_repos ()
 function clone_any_missing_repos()
 {
     local ORGNAME="${1}"
-    local IGNORE_REPOS=(
-        nginx
-        react-csv
-    )
     local org_url
     local org_repos_url
     local repos_out
@@ -76,7 +78,6 @@ function clone_any_missing_repos()
     local page
 
     readonly ORGNAME
-    readonly IGNORE_REPOS
 
     org_url="https://api.github.com/orgs/${ORGNAME}"
     org_repos_url="$(curl -s "${org_url}"|jq -r '.repos_url')?type=all&per_page=100"

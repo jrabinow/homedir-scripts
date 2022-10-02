@@ -128,6 +128,7 @@ function main()
         .jupyter
         .keras
         .kde
+        .lemminx
         .lftp
         .links
         .links2
