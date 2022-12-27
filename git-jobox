@@ -9,6 +9,7 @@ readonly IGNORE_REPOS=(
     nginx
     react-csv
     kilikyctest
+    cometchat_datamigration
 )
 
 function elem_in () {

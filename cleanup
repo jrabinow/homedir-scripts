@@ -30,6 +30,7 @@ function main()
         .aria2
         .assaultcube_v1.104
         .audacity-data
+        .bash_sessions
         .cache
         .cargo
         .CFUserTextEncoding
@@ -168,6 +169,7 @@ function main()
         .octave_hist
         .oracle_jre_usage
         .osquery
+        .p2
         .packer.d
         .parallel
         .pdfedit
@@ -190,6 +192,7 @@ function main()
         .sunstudio
         .swiftpm
         .swt
+        .task
         .terraform.d
         .texlive2020
         .texmf-var
@@ -197,6 +200,7 @@ function main()
         .thumbnails
         .tmp
         .tooling
+        .tuist
         .Trash
         .update-notifier
         .vidalia
@@ -229,6 +233,7 @@ function main()
         .hphpd.history
         .hphpd.ini
         .imsettings.log
+        .kotlinc_history
         .lesshst
         .mycli.log
         .myclirc
@@ -290,7 +295,7 @@ function main()
 
     # OSX is lame
     if [[ "${OSTYPE}" =~ darwin ]]; then
-        test -d ~/.Trash && /bin/chmod -N ~/.Trash
+        test -d ~/.Trash && /bin/chmod -N ~/.Trash || echo fuck mac
     fi
 
     for d in "${homedir_dirs[@]}"; do
