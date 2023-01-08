@@ -294,7 +294,7 @@ function main()
     #rm -rf $HOME/.android/!(avd)
 
     # OSX is lame
-    if [[ "${OSTYPE}" =~ darwin ]]; then
+    if [[ ${OSTYPE} =~ darwin ]]; then
         test -d ~/.Trash && /bin/chmod -N ~/.Trash || echo fuck mac
     fi
 

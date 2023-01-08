@@ -177,7 +177,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     case "${action}" in
         enable)

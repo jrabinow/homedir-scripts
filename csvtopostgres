@@ -40,7 +40,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     csvfile="${1}"
     shift

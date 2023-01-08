@@ -12,7 +12,7 @@ set -e -u -o pipefail
 FREEZEPORTS_HASHES="${XDG_DATA_DIR:-${HOME}/.local/share/macports/freezeports_hashes}"
 readonly FREEZEPORTS_HASHES
 
-function usage ()
+function usage()
 {
     cat << EOF
 Usage: ${0##*/} [OPTION]...
@@ -21,11 +21,14 @@ Options: -h, --help: show this help dialog
 EOF
 }
 
-function set_param ()
+function set_param()
 {
-    portfile="${1}"; shift
-    param="${1}"; shift
-    value="${1}"; shift
+    portfile="${1}"
+    shift
+    param="${1}"
+    shift
+    value="${1}"
+    shift
     sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
 }
 
@@ -33,9 +36,10 @@ function set_param ()
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
 # https://github.com/macports/macports-ports/pull/13936
-function handle_google-cloud-sdk ()
+function handle_google-cloud-sdk()
 {
-    portfile="${1}"; shift
+    portfile="${1}"
+    shift
     py_version=3.10
     set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
     # disable patches
@@ -43,9 +47,10 @@ function handle_google-cloud-sdk ()
     sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
 }
 
-function readhash ()
+function readhash()
 {
-    local portname="${1}"; shift
+    local portname="${1}"
+    shift
 
     # https://unix.stackexchange.com/a/462089
     declare -n hashes="freezeports_md5"
@@ -53,7 +58,7 @@ function readhash ()
     hashes["${portname}"]="$(awk "/${portname}/ {print \$1}" "${FREEZEPORTS_HASHES}")"
 }
 
-function macports_localchanges ()
+function macports_localchanges()
 {
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
@@ -63,13 +68,13 @@ function macports_localchanges ()
 
     for portname in "${!freezeports_md5[@]}"; do
         portfile="$(port file "${portname}")"
-        portfile_md5_actual="$(md5sum "${portfile}"|awk '{print $1}')"
+        portfile_md5_actual="$(md5sum "${portfile}" | awk '{print $1}')"
         portfile_md5_expected="${freezeports_md5[${portname}]}"
-        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ] && \
-            [[ ! ".*${portname}.*" =~ "${skip_port_md5}" ]]; then
+        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ] \
+            && [[ ! ".*${portname}.*" =~ ${skip_port_md5} ]]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
-            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}"|awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
+            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}" | awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
             vim -i "${tmpfile}" -O "${FREEZEPORTS_HASHES}" "${portfile}"
             rm "${tmpfile}"
         else
@@ -79,16 +84,16 @@ function macports_localchanges ()
     done
 }
 
-function postinstall_tasks ()
+function postinstall_tasks()
 {
     # google-cloud-sdk is built remotely, updating the portfile changes nothing T_T
-    port contents google-cloud-sdk | \
-        grep /opt/local/bin | \
-        xargs readlink | \
-        xargs -I% file /opt/local/bin/% | \
-        grep 'POSIX shell script' | \
-        cut -d: -f1 | \
-        xargs sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.10/\2python3.10|'
+    port contents google-cloud-sdk \
+        | grep /opt/local/bin \
+        | xargs readlink \
+        | xargs -I% file /opt/local/bin/% \
+        | grep 'POSIX shell script' \
+        | cut -d: -f1 \
+        | xargs sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.10/\2python3.10|'
 }
 
 function main()

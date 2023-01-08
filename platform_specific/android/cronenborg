@@ -19,9 +19,8 @@ set -o pipefail
 #   backup user0's internal storage to the phone's microsd card
 # - optional: install termux:api from fdroid for notifications
 
-
 readonly PARTLABEL=microsd_luks
-PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export|grep '^UUID'|cut -d= -f2)"
+PARTUUID="$(blkid "/dev/mapper/${PARTLABEL}" -o export | grep '^UUID' | cut -d= -f2)"
 readonly PARTUUID
 readonly MOUNTPOINT="/mnt/media_rw/${PARTUUID}"
 readonly REPO_PATH="${MOUNTPOINT}/archive"
@@ -35,43 +34,52 @@ Options: --help, -h: show this help dialog
 EOF
 }
 
-function battery_status ()
+function battery_status()
 {
     battstats="$(su -c 'dumpsys battery')"
-    isplugged="$(grep 'AC powered: ' <<< "${battstats}"|awk '{print $3}')"
-    percentage="$(grep -E '^\s*level:' <<< "${battstats}"|awk '{print $2}')"
+    isplugged="$(grep 'AC powered: ' <<< "${battstats}" | awk '{print $3}')"
+    percentage="$(grep -E '^\s*level:' <<< "${battstats}" | awk '{print $2}')"
 
     "${isplugged}" || [ "${percentage}" -ge ${BATT_MIN_PERCENTAGE} ]
 }
 
-function gen_notification ()
+function gen_notification()
 {
-    title="${1}"; shift
-    text="${1}"; shift
+    title="${1}"
+    shift
+    text="${1}"
+    shift
 
     timeout 30 cmd notification post -S bigtext -t "${title}" 'Im really not sure what this is' "${text}" > /dev/null
 }
 
-function verify_is_mounted ()
+function verify_is_mounted()
 {
-    mount|grep "${PARTLABEL} on ${MOUNTPOINT} type ext4" >/dev/null
+    mount | grep "${PARTLABEL} on ${MOUNTPOINT} type ext4" > /dev/null
 }
 
-function archive_name ()
+function archive_name()
 {
-    backuptype="${1}"; shift
-    user="${1}"; shift
-    archive_ts="${1}"; shift
+    backuptype="${1}"
+    shift
+    user="${1}"
+    shift
+    archive_ts="${1}"
+    shift
 
     echo "u${user}_${backuptype}_${archive_ts}"
 }
 
-function backup ()
+function backup()
 {
-    backuptype="${1}"; shift
-    datadir="${1}"; shift
-    user="${1}"; shift
-    archive_ts="${1}"; shift
+    backuptype="${1}"
+    shift
+    datadir="${1}"
+    shift
+    user="${1}"
+    shift
+    archive_ts="${1}"
+    shift
 
     archive_name="$(archive_name "${backuptype}" "${user}" "${archive_ts}")"
     full_repo_path="${REPO_PATH}/${user}/${backuptype}.borg"
@@ -121,7 +129,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     archive_ts="$(date +"%Y-%m-%d-%H-%M-%S")"
 

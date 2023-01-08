@@ -21,13 +21,13 @@ Options: --help, -h: show this help dialog
 EOF
 }
 
-function monitor_and_skip_ads ()
+function monitor_and_skip_ads()
 {
     old_track_id=""
 
     while is_spotify_running; do
         track_id="$(osascript -e 'tell application "spotify" to id of current track' || echo "")"
-        if [[ "${track_id}" =~ "spotify:ad:" ]]; then
+        if [[ ${track_id} =~ "spotify:ad:" ]]; then
             pkill -i spotify
             sleep 1
             spotify_launchnplay
@@ -42,16 +42,16 @@ function monitor_and_skip_ads ()
     done
 }
 
-function is_spotify_running ()
+function is_spotify_running()
 {
     test "$(pgrep -i spotify)" != ""
 }
 
-function spotify_launchnplay ()
+function spotify_launchnplay()
 {
-        open -ga Spotify
-        sleep 5
-        osascript -e 'tell application "spotify" to play'
+    open -ga Spotify
+    sleep 5
+    osascript -e 'tell application "spotify" to play'
 }
 
 function main()
@@ -81,7 +81,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     if ! is_spotify_running; then
         spotify_launchnplay

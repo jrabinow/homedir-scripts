@@ -16,9 +16,10 @@ Options: --help, -h: show this help dialog
 EOF
 }
 
-function bellfunc ()
+function bellfunc()
 {
-    message=${1}; shift
+    message=${1}
+    shift
 
     if [ -n "${TMUX:-""}" ]; then
         for _ in {1..3}; do
@@ -45,7 +46,8 @@ function bellfunc ()
 
 function wait_for_exit()
 {
-    pid=${1}; shift
+    pid=${1}
+    shift
     cont=true
     while "${cont}"; do
         ps -p "${pid}" > /dev/null && cont=true || cont=false
@@ -53,10 +55,12 @@ function wait_for_exit()
     done
 }
 
-function build_message ()
+function build_message()
 {
-    cmdline_msg="${1}"; shift
-    default_msg="${1}"; shift
+    cmdline_msg="${1}"
+    shift
+    default_msg="${1}"
+    shift
 
     if [ -z "${cmdline_msg}" ]; then
         echo "${default_msg}"
@@ -64,7 +68,6 @@ function build_message ()
         echo "${cmdline_msg}"
     fi
 }
-
 
 function main()
 {
@@ -108,7 +111,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     if "${run_cmd}" && "${follow_pid}"; then
         printf "error: can only use one of -p or -c\n" >&2

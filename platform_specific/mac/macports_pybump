@@ -16,15 +16,17 @@ Options: --help, -h: show this help dialog
 EOF
 }
 
-function portfile_add_pyversion ()
+function portfile_add_pyversion()
 {
-    pypkg="${1}"; shift
-    pyver="${1}"; shift
+    pypkg="${1}"
+    shift
+    pyver="${1}"
+    shift
 
-    grep -E '^python.versions\s+' "./python/${pypkg}/Portfile" && \
-        (grep -E "^python.versions\s+${pyver}" "./python/${pypkg}/Portfile" || \
-            sed -i "s/^python.versions\(.*\)/python.versions\1 ${pyver}/" "python/${pypkg}/Portfile" && \
-            grep -E "^python.versions\s+.* ${pyver}" "./python/${pypkg}/Portfile")
+    grep -E '^python.versions\s+' "./python/${pypkg}/Portfile" \
+        && (grep -E "^python.versions\s+${pyver}" "./python/${pypkg}/Portfile" \
+            || sed -i "s/^python.versions\(.*\)/python.versions\1 ${pyver}/" "python/${pypkg}/Portfile" \
+            && grep -E "^python.versions\s+.* ${pyver}" "./python/${pypkg}/Portfile")
 }
 
 function get_versinfo()
@@ -34,9 +36,12 @@ function get_versinfo()
 
 function upgrade_port()
 {
-    pypkg="${1}"; shift
-    pyver="${1}"; shift
-    notests="${1}"; shift
+    pypkg="${1}"
+    shift
+    pyver="${1}"
+    shift
+    notests="${1}"
+    shift
 
     git stash || true
     sudo port_cutleaves || true
@@ -45,7 +50,7 @@ function upgrade_port()
     git br -d "${branchname}" || true
     git cob "${branchname}"
     git co 'stash@{0}' -- "./python/${pypkg}" || true
-    if [ "$(git st --short|wc -l)" == 0 ]; then
+    if [ "$(git st --short | wc -l)" == 0 ]; then
         portfile_add_pyversion "${pypkg}" "${pyver}"
     fi
     git add "./python/${pypkg}"
@@ -72,10 +77,12 @@ EOF
     fi
 }
 
-function gen_prtxt ()
+function gen_prtxt()
 {
-    pypkg=$1; shift
-    pyver=$1; shift
+    pypkg=$1
+    shift
+    pyver=$1
+    shift
 
     cat << EOF | tee /dev/tty | pbcopy
 #### Description
@@ -145,7 +152,7 @@ function main()
         esac
     done
     shift $((OPTIND - 1))
-    [[ ${1:-} == '--' ]] && shift
+    [[ ${1-} == '--' ]] && shift
 
     if [ $# -lt 1 ]; then
         echo "Missing port name" >&2
@@ -153,13 +160,14 @@ function main()
         exit 1
     fi
 
-    grep -E '^file:///tmp/macports-ports \[nosync,default\]$' /opt/local/etc/macports/sources.conf || \
-        (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
+    grep -E '^file:///tmp/macports-ports \[nosync,default\]$' /opt/local/etc/macports/sources.conf \
+        || (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
     grep -E '^#rsync://rsync.macports.org/macports/release/tarballs/ports.tar \[default\]$' \
-        /opt/local/etc/macports/sources.conf || \
-        (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
+        /opt/local/etc/macports/sources.conf \
+        || (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
     while [ $# -gt 0 ]; do
-        pypkg="${1}"; shift
+        pypkg="${1}"
+        shift
         upgrade_port "${pypkg}" "${pyver}" "${notests}" "${basebranch}"
         gen_prtxt "${pypkg}" "${pyver}"
         if [ $# -gt 0 ]; then
