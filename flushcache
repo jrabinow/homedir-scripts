@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash
 
 platform="$(uname | tr '[:upper:]' '[:lower:]')"
 if [[ ${platform} == "linux" ]]; then

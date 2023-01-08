@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash
 
 # download host lists and apply them to /etc/hosts
 # this should be sufficient to kill ads in both spotify and google play

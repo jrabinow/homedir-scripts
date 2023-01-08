@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S bash
 
 set -e -u
 set -o pipefail
@@ -10,6 +10,7 @@ function usage()
     cat << EOF
 Usage: ${0##*/}" [OPTION]... get PASTE_ID
 Usage: ${0##*/}" [OPTION]... post [FILE]
+Usage: ${0##*/}" [OPTION]... delete PASTE_ID|URL
 Options: --help, -h: show this help dialog
 When posting, FILE argument is optional. If not provided, wwwpaste will read stdin
 EOF
