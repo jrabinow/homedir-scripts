@@ -1,5 +1,11 @@
 #!/usr/bin/env -S bash
 
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
 set -e -u
 set -o pipefail
 
@@ -33,7 +39,7 @@ function pypi_search()
             | gzip -d)"
         package_names="$(xmllint --html --xpath '//span[@class = "package-snippet__name"]/text()' - <<< "${webpage}" 2> /dev/null)"
         package_versions="$(xmllint --html --xpath '//span[@class = "package-snippet__version"]/text()' - <<< "${webpage}" 2> /dev/null)"
-        package_releasedate="$(xmllint --html --xpath '//span[@class = "package-snippet__released"]//text()' - <<< "${webpage}" 2> /dev/null | sed '/^$/d')"
+        package_releasedate="$(xmllint --html --xpath '//span[@class = "package-snippet__created"]//text()' - <<< "${webpage}" 2> /dev/null | sed '/^$/d')"
         package_desc="$(xmllint --html --xpath '//p[@class = "package-snippet__description"]/text()' - <<< "${webpage}" 2> /dev/null)"
         paste <(echo "${package_names}") <(echo "${package_versions}") <(echo "${package_releasedate}") <(echo "${package_desc}")
     done
