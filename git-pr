@@ -18,15 +18,17 @@ set -o pipefail
 # replace jira_user variable below with your own jira account email
 # replace jira_api_token below with your own api token https://id.atlassian.com/manage/api-tokens
 #
-# Usage: 
+# Usage:
 # $ git pr [OPTION]... [TICKET_NUM]
-# Options: -b ARG: make pull request to this branch 
+# Options: -b ARG: make pull request to this branch
 #          -t ARG: use title ARG for PR
 #          -h: show this help dialog
 
+source ~/.local/share/bash/perscreds
 source ~/.local/share/bash/joboxcreds
 
-function main () {
+function main()
+{
     readonly jira_domain="${JIRA_DOMAIN}"
     readonly jira_user="${JIRA_LOGIN}"
     readonly jira_api_token="${JIRA_API_TOKEN}"
@@ -36,9 +38,9 @@ function main () {
             b)
                 dst_branch="${OPTARG}"
                 ;;
-            h)    # help message
+            h) # help message
                 cat << EOF
-Usage: $(basename $0) [OPTION]... [TICKET_NUM]
+Usage: $(basename "${0}") [OPTION]... [TICKET_NUM]
 Options: -b ARG: make pull request to this branch 
          -h: show this help dialog
          -t ARG: use title ARG for PR
@@ -57,10 +59,11 @@ EOF
     shift $((OPTIND - 1))
     [[ "${1:-}" == '--' ]] && shift
 
-    ticket_id="${1:-}"; shift || true
+    ticket_id="${1:-}"
+    shift || true
     jira_ticket=false
     case "${ticket_id}" in
-        CS*|DA*|DISP*|ROCKET*|OM*|OPS*|PRODUCT*|BS*|ENG*)
+        CS* | DA* | DISP* | ROCKET* | OM* | OPS* | PRODUCT* | BS* | ENG*)
             jira_ticket=true
             ;;
         ?)
@@ -72,7 +75,7 @@ EOF
             -H 'Content-Type: application/json' \
             "${jira_domain}/rest/api/latest/issue/${ticket_id}")
         pr_title="${ticket_id}: ${title:-$(git log -n1 --pretty=format:%B)}"
-        ticket_description="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}"|dos2unix)"
+        ticket_description="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" | dos2unix)"
         if [[ "${ticket_description}" == 'null' ]]; then
             ticket_description=""
         fi
@@ -83,6 +86,7 @@ EOF
         description=""
     fi
     commit_desc_file=$(mktemp -t)
+    # shellcheck disable=SC2064
     trap "rm '${commit_desc_file}'" EXIT
     cat > "${commit_desc_file}" << EOF
 Title: ${pr_title}
@@ -101,9 +105,9 @@ EOF
     vim -c 'set formatoptions-=cro' "${commit_desc_file}"
     pr_title=$(grep '^Title:' "${commit_desc_file}" | cut -d' ' -f2-)
     dst_branch=$(grep '^Branch: ' "${commit_desc_file}" | cut -d' ' -f2-)
-    summary=$(awk '/^## Summary:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || "")
-    description=$(awk '/^## Description:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || "")
-    test_plan=$(awk '/^## Test plan:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || "")
+    summary=$(awk '/^## Summary:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
+    description=$(awk '/^## Description:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
+    test_plan=$(awk '/^## Test plan:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
     pr_desc="$(printf "%s\n\n%s\n\n%s\n" "${summary}" "${description}" "${test_plan}")"
     printf -- "%s\n%s\n------------------\n%s\n----------------------\n" "${pr_title}" "${dst_branch}" "${pr_desc}"
     src_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -113,8 +117,8 @@ EOF
         git branch -u "${remote}" "${src_branch}"
     fi
     git push -u "${remote}" "${src_branch}"
-    ghpr -t "${pr_title}" -d "${pr_desc}" -b "${dst_branch}" -c || \
-        (printf "failed to create PR - file saved here: ${commit_desc_file}\n" && false)
+    ghpr -t "${pr_title}" -d "${pr_desc}" -b "${dst_branch}" -c \
+        || (printf "failed to create PR - file saved here: %s\n" "${commit_desc_file}" && false)
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then

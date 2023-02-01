@@ -160,7 +160,7 @@ function main()
         exit 1
     fi
 
-    grep -E '^file:///tmp/macports-ports \[nosync,default\]$' /opt/local/etc/macports/sources.conf \
+    grep -E "^file://${macports} \[nosync,default\]$" /opt/local/etc/macports/sources.conf \
         || (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
     grep -E '^#rsync://rsync.macports.org/macports/release/tarballs/ports.tar \[default\]$' \
         /opt/local/etc/macports/sources.conf \

@@ -32,21 +32,6 @@ function set_param()
     sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
 }
 
-# use python3.10. gcloud command ignores the dependency version anyways and
-# tries to intelligently select the python version on its own. Spoiler alert:
-# this approach is dumb
-# https://github.com/macports/macports-ports/pull/13936
-function handle_google-cloud-sdk()
-{
-    portfile="${1}"
-    shift
-    py_version=3.10
-    set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
-    # disable patches
-    sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
-    sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
-}
-
 function readhash()
 {
     local portname="${1}"
@@ -58,20 +43,42 @@ function readhash()
     hashes["${portname}"]="$(awk "/${portname}/ {print \$1}" "${FREEZEPORTS_HASHES}")"
 }
 
+# use python3.10. gcloud command ignores the dependency version anyways and
+# tries to intelligently select the python version on its own. Spoiler alert:
+# this approach is dumb
+# https://github.com/macports/macports-ports/pull/13936
+function handle_google-cloud-sdk()
+{
+    portfile="${1}"
+    shift
+    py_version=3.11
+    set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
+    # disable patches
+    sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
+    sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
+}
+
+function handle_docker-compose()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" python.version 3.10
+}
+
 function macports_localchanges()
 {
+    readonly PORTS="google-cloud-sdk docker-compose"
+    readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
-    declare -A skip_port_md5="google-cloud-sdk"
 
-    readhash google-cloud-sdk
-
-    for portname in "${!freezeports_md5[@]}"; do
+    for portname in ${PORTS}; do
+        readhash "${portname}"
         portfile="$(port file "${portname}")"
         portfile_md5_actual="$(md5sum "${portfile}" | awk '{print $1}')"
         portfile_md5_expected="${freezeports_md5[${portname}]}"
         if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ] \
-            && [[ ! ".*${portname}.*" =~ ${skip_port_md5} ]]; then
+            && [[ ! ".*${portname}.*" =~ ${SKIP_PORT_MD5} ]]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
             echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}" | awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"

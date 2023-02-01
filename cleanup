@@ -241,6 +241,7 @@ function main()
         .node_repl_history
         .npmrc
         .ophcrackrc
+        .pdbhistory
         .pEp_management.db
         .pEp_management.db-shm
         .pEp_management.db-wal

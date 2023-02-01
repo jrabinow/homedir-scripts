@@ -171,7 +171,6 @@ def partition_matched_unmatched(
     # Otherwise, barfile1 is unmatched.
     len_rootdirs = len(rootdirs)
     for hexdigest, filedata in hashdiff_data.items():
-        # unmatched_iter = {}
         for _, filelist in filedata.items():
             if len(filelist) == len_rootdirs:
                 assert (
@@ -183,8 +182,6 @@ def partition_matched_unmatched(
             else:
                 for f in filelist:
                     unmatched[f.hexdigest].append(f)
-        # for f in unmatched_iter.values():
-        #    unmatched[f.hexdigest].append(f)
 
     return matched, unmatched
 
