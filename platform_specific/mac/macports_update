@@ -17,7 +17,7 @@ function usage()
     cat << EOF
 Usage: ${0##*/} [OPTION]...
 Options: -h, --help: show this help dialog
-         --no-selfupdate: don't run \`port selfupdate\`
+         --selfupdate: run \`port selfupdate\`
 EOF
 }
 
@@ -27,7 +27,7 @@ function set_param()
     shift
     param="${1}"
     shift
-    value="${1}"
+    value="${*}"
     shift
     sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
 }
@@ -62,12 +62,12 @@ function handle_docker-compose()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" python.version 3.10
+    set_param "${portfile}" python.version 3.11
 }
 
 function macports_localchanges()
 {
-    readonly PORTS="google-cloud-sdk docker-compose"
+    readonly PORTS="docker-compose"
     readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
@@ -100,12 +100,13 @@ function postinstall_tasks()
         | xargs -I% file /opt/local/bin/% \
         | grep 'POSIX shell script' \
         | cut -d: -f1 \
-        | xargs sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.10/\2python3.10|'
+        | xargs sudo sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.11/\2python3.11|'
+    sudo rm -f /opt/local/etc/gitconfig
 }
 
 function main()
 {
-    run_port_selfupdate=true
+    run_port_selfupdate=false
 
     while getopts "h-:" opt; do
         case "${opt}" in
@@ -119,8 +120,8 @@ function main()
                         usage
                         exit 0
                         ;;
-                    no-selfupdate)
-                        run_port_selfupdate=false
+                    selfupdate)
+                        run_port_selfupdate=true
                         ;;
                     *)
                         printf "Unknown option, exiting now\n" >&2

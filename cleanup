@@ -65,6 +65,7 @@ function main()
         .config/ibus
         .config/imsettings
         .config/iTerm2
+        .config/jgit
         .config/kazam
         .config/lftp
         .config/libreoffice

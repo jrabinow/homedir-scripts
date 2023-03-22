@@ -160,6 +160,7 @@ function main()
         exit 1
     fi
 
+    # shellcheck disable=SC2154
     grep -E "^file://${macports} \[nosync,default\]$" /opt/local/etc/macports/sources.conf \
         || (echo 'did you change /opt/local/etc/macports/sources.conf?' && false)
     grep -E '^#rsync://rsync.macports.org/macports/release/tarballs/ports.tar \[default\]$' \
