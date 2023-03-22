@@ -47,6 +47,12 @@ function is_spotify_running()
     test "$(pgrep -i spotify)" != ""
 }
 
+function is_already_running()
+{
+    # greater than 2: one for the self, and one for the fork
+    test "$(pgrep -alf 'bash' | grep -c audio_ads_adios)" -gt 2
+}
+
 function spotify_launchnplay()
 {
     open -ga Spotify
@@ -87,7 +93,12 @@ function main()
         spotify_launchnplay
     fi
 
-    monitor_and_skip_ads &
+    if is_already_running; then
+        printf "already running\n"
+    else
+        monitor_and_skip_ads &
+    fi
+    exit 0
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
