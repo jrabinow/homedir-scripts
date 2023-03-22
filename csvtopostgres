@@ -61,7 +61,7 @@ function main()
     createdb db
 
     csvsql --db postgresql://default@localhost:5432/db --overwrite --insert "${csvfile}"
-    psql service=local
+    psql service=local -U default --dbname db
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
