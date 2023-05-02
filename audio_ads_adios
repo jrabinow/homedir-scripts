@@ -55,7 +55,7 @@ function is_already_running()
 
 function spotify_launchnplay()
 {
-    open -ga Spotify
+    open -gja Spotify
     sleep 5
     osascript -e 'tell application "spotify" to play'
 }
