@@ -8,13 +8,36 @@ set -o pipefail
 function usage()
 {
     cat << EOF
-Usage: ${0##*/}" [OPTION]... CSVFILE DBDIR
+Usage: ${0##*/}" [OPTION]... DBDIR CSVFILE1 [CSVFILE2...]
 Options: --help, -h: show this help dialog
+         --resetdb: reset db if already exists
 EOF
+}
+
+function setup_venv()
+{
+    if [ ! -d .venv ]; then
+        virtualenv .venv
+    fi
+    # shellcheck disable=SC1091
+    source ./.venv/bin/activate
+    pip install psycopg2 csvkit
+}
+
+function setup_db()
+{
+    mkdir -p "${DBDIR}"
+    pg_ctl -D "${DBDIR}" init
+    pg_ctl -D "${DBDIR}" -l "${DBDIR}/logfile" start
+    createuser default
+    createdb db
+    psql service=local -U "${USER}" -c 'GRANT ALL ON SCHEMA public TO PUBLIC'
 }
 
 function main()
 {
+    RESET_DB=false
+
     while getopts "h-:" opt; do
         case ${opt} in
             h) # help message
@@ -26,6 +49,9 @@ function main()
                     help)
                         usage
                         exit 0
+                        ;;
+                    resetdb)
+                        RESET_DB=true
                         ;;
                     *)
                         printf 'Unknown option, exiting now\n' >&2
@@ -42,26 +68,44 @@ function main()
     shift $((OPTIND - 1))
     [[ ${1-} == '--' ]] && shift
 
-    csvfile="${1}"
-    shift
-    dbname="${1}"
+    local DBDIR="${1}"
     shift
 
-    sed -i -E '1 s/ /_/g; 1 s/(.*)/\L\1/g' "${csvfile}"
+    readonly DBDIR
+    declare -A table_desc=([foo]="")
 
-    virtualenv venv
-    # shellcheck disable=SC1091
-    source ./venv/bin/activate
-    pip install psycopg2 csvkit
+    setup_venv
+    if [ -d "${DBDIR}" ]; then
+        if "${RESET_DB}"; then
+            pg_ctl -D "${DBDIR}" stop || true
+            rm -r "${DBDIR}"
+            setup_db "${DBDIR}"
+            CSVSQL_OPT="--create-if-not-exists"
+        else
+            CSVSQL_OPT=
+        fi
+    else
+        setup_db "${DBDIR}"
+        CSVSQL_OPT=
+    fi
 
-    mkdir -p "${dbname}"
-    pg_ctl -D "${dbname}" init
-    pg_ctl -D "${dbname}" -l "${dbname}/logfile" start
-    createuser default
-    createdb db
-
-    csvsql --db postgresql://$USER@localhost:5432/db --overwrite --insert "${csvfile}"
-    psql --dbname db
+    while [ "$#" -gt 0 ]; do
+        csvfile="${1}"
+        shift
+        csvfile_desc="$(sed -n -E '1 s/ /_/g; 1 s/(.*)/\L\1/g; 1p' "${csvfile}")"
+        tablename="$(sed -E 's/\.[^.]*(\.[0-9]*)?$//' <<< "${csvfile}" | tr -d -C '[:alnum:]')"
+        # shellcheck disable=SC2086
+        if [[ -n "${table_desc[$csvfile_desc]-}" ]]; then
+            csvsql --db postgresql://default@localhost:5432/db ${CSVSQL_OPT} --tables "${tablename}" --insert --overwrite "${csvfile}"
+            table_desc[$csvfile_desc]=true
+        else
+            csvsql --db postgresql://default@localhost:5432/db ${CSVSQL_OPT} --tables "${tablename}" --insert "${csvfile}"
+        fi
+    done
+    psql -U default --dbname db
+    #for k in "${!table_desc[@]}"; do
+    #    echo $k
+    #done
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
