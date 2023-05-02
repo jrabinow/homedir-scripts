@@ -31,6 +31,7 @@ function main()
         .assaultcube_v1.104
         .audacity-data
         .bash_sessions
+        .cabal
         .cache
         .cargo
         .CFUserTextEncoding
@@ -91,6 +92,7 @@ function main()
         .ddd
         .designer
         .dlv
+        .docker
         .dreamchess
         .docker
         .DS_Store
@@ -191,6 +193,7 @@ function main()
         .scala_history
         .sqlite_history
         .sunstudio
+        .stack
         .swiftpm
         .swt
         .task
