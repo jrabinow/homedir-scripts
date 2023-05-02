@@ -50,10 +50,12 @@ class DirDiffFile:
         return self.rootdir / self.position
 
 
-class JSONEncoder(json.JSONEncoder):
+class JsonEncoder(json.JSONEncoder):
     def default(self, o):
         if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
+            d = dataclasses.asdict(o)
+            d["path"] = o.absolute
+            return d
         if isinstance(o, Path):
             return str(o)
         return super().default(o)
@@ -85,6 +87,13 @@ def parse_args():
         help="don't show files if they weren't either moved or modified",
     )
     parser.add_argument(
+        "-s",
+        "--silent",
+        action="store_true",
+        help="don't print modified/additional/moved section headers",
+    )
+    output_format = parser.add_mutually_exclusive_group()
+    output_format.add_argument(
         "--json",
         action="store_true",
         help="display output as JSON",
@@ -232,32 +241,42 @@ def partition_unmatched_by_type(
 
 
 def print_results(
-    args,
     modified: Dict[Path, List[DirDiffFile]],
     moved: List[List[DirDiffFile]],
     additional: List[DirDiffFile],
+    ignore_modified=False,
+    ignore_moved=False,
+    ignore_additional=False,
+    json_output=False,
+    silent=False,
 ):
-    output_dict = {
-        "modified": {str(k): v for k, v in modified.items()}
-        if not args.ignore_modified
-        else {},
-        "moved": moved if not args.ignore_moved else [],
-        "added": additional if not args.ignore_additional else [],
-    }
+    output_dict = {}
+    if not ignore_modified:
+        output_dict["modified"] = {str(k): v for k, v in modified.items()}
+    if not ignore_moved:
+        output_dict["moved"] = moved
+    if not ignore_additional:
+        output_dict["added"] = additional
 
-    if args.json:
-        print(json.dumps(output_dict, indent=2, cls=JSONEncoder))
+    if json_output:
+        print(json.dumps(output_dict, indent=2, cls=JsonEncoder))
     else:
-        print("modified files:")
-        for filepath in output_dict["modified"]:
-            print(filepath)
-        print("moved/renamed files:")
-        for ren in output_dict["moved"]:
-            moved_str = "\t".join([str(f.absolute) for f in ren])
-            print(moved_str)
-        print("additional files:")
-        for add in output_dict["added"]:
-            print(add.absolute)
+        if not ignore_modified:
+            if not silent:
+                print("modified files:")
+            for filepath in output_dict["modified"]:
+                print(filepath)
+        if not ignore_moved:
+            if not silent:
+                print("moved/renamed files:")
+            for ren in output_dict["moved"]:
+                moved_str = "\t".join([str(f.absolute) for f in ren])
+                print(moved_str)
+        if not ignore_additional:
+            if not silent:
+                print("additional files:")
+            for add in output_dict["added"]:
+                print(add.absolute)
 
 
 def main():
@@ -268,7 +287,16 @@ def main():
     modified, moved, additional = partition_unmatched_by_type(
         unmatched, pathdiff_data, args.dirpath
     )
-    print_results(args, modified, moved, additional)
+    print_results(
+        modified,
+        moved,
+        additional,
+        args.ignore_modified,
+        args.ignore_moved,
+        args.ignore_additional,
+        args.json,
+        args.silent,
+    )
 
 
 if __name__ == "__main__":
