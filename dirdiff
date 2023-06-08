@@ -11,10 +11,6 @@ additional files:
 1 column
 """
 
-from collections import defaultdict
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Dict, List
 import argparse
 import dataclasses
 import hashlib
@@ -22,6 +18,10 @@ import json
 import logging
 import os
 import stat
+from collections import defaultdict
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Dict, List
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
@@ -40,7 +40,7 @@ class DirDiffFile:
     position: Path
     hexdigest: str
 
-    def __init__(self, rootdir, path):
+    def __init__(self, rootdir: Path, path: Path):
         self.rootdir = rootdir
         self.position = path
         self.hexdigest = file_hexdigest(self.absolute)
@@ -122,9 +122,9 @@ def chdir(dirname):
 
 def apply_to_dir(dirpath, func):
     return [
-        func(os.path.join(dirp, fname))
-        for dirp, _, filenames in os.walk(dirpath)
-        for fname in filenames
+        dirpath / func(filepath)
+        for filepath in Path(dirpath).rglob("*")
+        if not filepath.is_dir()
     ]
 
 
@@ -156,7 +156,7 @@ def preprocess_into_datastructs(rootdirs: List[Path]):
     for rootdir in rootdirs:
         rootdir_path = Path(rootdir)
         with chdir(rootdir_path):
-            filelist = apply_to_dir(".", lambda x: Path(x))
+            filelist = apply_to_dir(".", lambda x: x)
         for f in filelist:
             try:
                 ddf = DirDiffFile(rootdir_path, f)
@@ -175,7 +175,7 @@ def partition_matched_unmatched(
     unmatched: Dict[HexDigest, List[DirDiffFile]] = defaultdict(list)
 
     # dir1/foopath1/barfile1 is matched with dir2/foopath2/barfile2 if:
-    #    - foopath1 == foopath2
+    #    - "foopath1" == "foopath2" and "barfile1" == "barfile2"
     #    - hash(barfile1) == hash(barfile2).
     # Otherwise, barfile1 is unmatched.
     len_rootdirs = len(rootdirs)
