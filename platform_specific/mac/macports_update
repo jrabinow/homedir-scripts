@@ -43,7 +43,7 @@ function readhash()
     hashes["${portname}"]="$(awk "/${portname}/ {print \$1}" "${FREEZEPORTS_HASHES}")"
 }
 
-# use python3.10. gcloud command ignores the dependency version anyways and
+# use python3.11. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
 # this approach is dumb
 # https://github.com/macports/macports-ports/pull/13936
@@ -53,21 +53,15 @@ function handle_google-cloud-sdk()
     shift
     py_version=3.11
     set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
+    set_param "${portfile}" revision 1
     # disable patches
     sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
     sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
 }
 
-function handle_docker-compose()
-{
-    portfile="${1}"
-    shift
-    set_param "${portfile}" python.version 3.11
-}
-
 function macports_localchanges()
 {
-    readonly PORTS="docker-compose"
+    readonly PORTS="google-cloud-sdk"
     readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
@@ -100,13 +94,13 @@ function postinstall_tasks()
         | xargs -I% file /opt/local/bin/% \
         | grep 'POSIX shell script' \
         | cut -d: -f1 \
-        | xargs sudo sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.7/(.*)python3\.7|CLOUDSDK_PYTHON=\1/3.11/\2python3.11|'
+        | xargs sudo sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.9/(.*)python3\.9|CLOUDSDK_PYTHON=\1/3.11/\2python3.11|'
     sudo rm -f /opt/local/etc/gitconfig
 }
 
 function main()
 {
-    run_port_selfupdate=false
+    run_port_selfupdate=true
 
     while getopts "h-:" opt; do
         case "${opt}" in
@@ -120,8 +114,8 @@ function main()
                         usage
                         exit 0
                         ;;
-                    selfupdate)
-                        run_port_selfupdate=true
+                    no-selfupdate)
+                        run_port_selfupdate=false
                         ;;
                     *)
                         printf "Unknown option, exiting now\n" >&2
@@ -140,10 +134,8 @@ function main()
     fi
     macports_localchanges
     port upgrade outdated
-    port uninstall leaves || true
-    port uninstall inactive || true
-    port uninstall rleaves || true
-    port reclaim || true
+    port uninstall leaves inactive rleaves || true
+    port reclaim -N || true
     postinstall_tasks
 }
 
