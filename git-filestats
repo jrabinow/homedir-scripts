@@ -13,15 +13,17 @@ EOF
 
 function filestats()
 {
-    file="${1}"
+    filepath="${1}"
     shift
 
-    if [ -d "${file}" ]; then
-        printf 'WARNING: %s is a directory! Incorrect stats incoming!\n' "${file}" >&2
+    if [ -d "${filepath}" ]; then
+        printf 'WARNING: %s is a directory! Incorrect stats incoming!\n' "${filepath}" >&2
+        txt="$(fd -H '.*' "${filepath}" -t f --exec git blame --date=format:%G --show-email {} \;)"
+    else
+        txt="$(git blame --date=format:%G --show-email "${filepath}")"
     fi
 
-    txt=$(git blame --date=format:%G --show-email "${file}")
-    numlines=$(wc -l <<< "${txt}")
+    numlines="$(wc -l <<< "${txt}")"
     echo "${numlines} total lines" | sed 's/^\s+//'
     echo "----- YEARS -----"
     echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
@@ -36,6 +38,7 @@ function filestats()
         | sort \
         | uniq -c \
         | sort -r \
+        | head -n"${TOP}" \
         | awk '{print $2 " -> " $1 " lines"}' | column -t
     echo "----- TOP DIFFS -----"
     echo "${txt}" | cut -b-8 \
