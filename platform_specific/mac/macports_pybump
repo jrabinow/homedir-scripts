@@ -36,45 +36,11 @@ function get_versinfo()
 
 function upgrade_port()
 {
-    pypkg="${1}"
+    python_pkg_name="$1"
     shift
-    pyver="${1}"
-    shift
-    notests="${1}"
-    shift
-
-    git stash || true
-    sudo port_cutleaves || true
-    git co "${basebranch}"
-    branchname="${pypkg}_py${pyver}"
-    git br -d "${branchname}" || true
-    git cob "${branchname}"
-    git co 'stash@{0}' -- "./python/${pypkg}" || true
-    if [ "$(git st --short | wc -l)" == 0 ]; then
-        portfile_add_pyversion "${pypkg}" "${pyver}"
-    fi
-    git add "./python/${pypkg}"
-    git ci -m "${pypkg}: add python$(cut -b1 <<< "${pyver}").$(cut -b2- <<< "${pyver}") subport"
-    git fpush -f
-    git show -p
+    sed -i -E 's/^python.versions(.*)/python.versions\1 311/' "$(port fil e "py-${python_pkg_name}")"
+    git add -p "$(port file "py-${python_pkg_name}")"
     portindex
-    port lint --nitpick "./python/${pypkg}/" | grep '0 errors and 0 warnings found.'
-    sudo port test "./python/${pypkg}/" || "${notests}"
-    sudo port install -vst "./python/${pypkg}/"
-    cat << EOF
-=========================================
-${pypkg}: SUCCESS
-=========================================
-EOF
-    sudo port uninstall "${pypkg}"
-    sudo port_cutleaves || true
-    git co "${basebranch}"
-
-    if [ -n "$(git stash list)" ]; then
-        git stash pop
-        git co -- "./python/${pypkg}/"
-        git stash
-    fi
 }
 
 function gen_prtxt()
@@ -170,12 +136,8 @@ function main()
         pypkg="${1}"
         shift
         upgrade_port "${pypkg}" "${pyver}" "${notests}" "${basebranch}"
-        gen_prtxt "${pypkg}" "${pyver}"
-        if [ $# -gt 0 ]; then
-            read -rp "Create github PR now. Press [ENTER] when done "
-        fi
     done
-
+    gen_prtxt "${pypkg}" "${pyver}"
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then

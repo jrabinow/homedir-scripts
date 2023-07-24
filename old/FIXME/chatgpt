@@ -16,11 +16,14 @@ function usage()
     cat << EOF
 Usage: ${0##*/}" [OPTION]...
 Options: --help, -h: show this help dialog
+         --nobell: don't ring bell once done
 EOF
 }
 
 function main()
 {
+    bell=true
+
     while getopts "h-:" opt; do
         case ${opt} in
             h) # help message
@@ -32,6 +35,9 @@ function main()
                     help)
                         usage
                         exit 0
+                        ;;
+                    nobell)
+                        bell=false
                         ;;
                     *)
                         printf 'Unknown option, exiting now\n' >&2
@@ -48,11 +54,15 @@ function main()
     shift $((OPTIND - 1))
     [[ ${1:-} == '--' ]] && shift
 
-    curl -s 'https://free.churchless.tech/v1/chat/completions' \
+    curl -X POST -s 'https://free.churchless.tech/v1/chat/completions' \
         -H 'Content-Type: application/json' \
         -d "{\"messages\":[{\"role\": \"user\", \"content\": \"${*}\"}]}" \
-        | jq '.choices[].message.content' \
-        | xargs echo -e
+        | jq -r '.choices[].message.content' \
+        | xargs -0 echo -e
+
+    if "${bell}"; then
+        bell
+    fi
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
