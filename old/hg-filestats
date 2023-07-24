@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bash
+#!/usr/bin/env bash
 
 # prints out years the file was modified as well as up to 10 top committers for
 # a file in a mercurial repo

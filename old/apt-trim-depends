@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bash
+#!/usr/bin/env bash
 
 # remove useless dependencies to allow you to uninstall a package
 # pass in the package you want to uninstall, this script will find

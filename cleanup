@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bash
+#!/usr/bin/env bash
 
 # delete shitloads of temporary files or files polluting the homedir
 #

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bash
+#!/usr/bin/env bash
 
 # Auto-kill+restart spotify when it tries to play an ad. This script will keep
 # running in the background and will automatically stop running when spotify
