@@ -143,6 +143,11 @@ def file_hexdigest(filepath):
             hasher.update(b"")
         else:
             raise
+    except OSError as e:
+        if e.errno == 102:
+            hasher.update(b"")
+        else:
+            raise
     return hasher.hexdigest()
 
 

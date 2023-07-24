@@ -94,7 +94,6 @@ function main()
         .dlv
         .docker
         .dreamchess
-        .docker
         .DS_Store
         .dvdcss
         .eclipse
@@ -102,6 +101,7 @@ function main()
         .elinks
         .emacs.d
         .evolution
+        .fastboot
         .fontconfig
         .forever
         .freemind
@@ -266,6 +266,7 @@ function main()
         .v8flags*
         .vault-token
         .vim/.netrwhist
+        .vimspector.log
         .viminfo
         .wget-hsts
         .xfce4-session.verbose-log*
@@ -274,6 +275,7 @@ function main()
         .yarnrc
         .ypp_42
         .zcompdump
+        .yaegi_history
     )
     tmpfiles=(
         com.apple.CoreSimulator.SimDevice.*
@@ -300,7 +302,7 @@ function main()
 
     # OSX is lame
     if [[ ${OSTYPE} =~ darwin ]]; then
-        test -d ~/.Trash && /bin/chmod -N ~/.Trash || echo fuck mac
+        test -d ~/.Trash && (/bin/chmod -N ~/.Trash || echo fuck mac)
     fi
 
     for d in "${homedir_dirs[@]}"; do
