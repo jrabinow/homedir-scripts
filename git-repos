@@ -5,13 +5,6 @@
 set -e -u
 set -o pipefail
 
-readonly IGNORE_REPOS=(
-    nginx
-    react-csv
-    kilikyctest
-    cometchat_datamigration
-)
-
 function elem_in()
 {
     local e match="$1"
@@ -42,9 +35,18 @@ function github_authheader()
     echo "Authorization: Basic ${b64_token}"
 }
 
+function run_git_cmd()
+{
+    gitargs="${*}"
+    printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
+    # we intentionally do not quote below to allow word splitting
+    # shellcheck disable=SC2086
+    git ${gitargs}
+}
+
 function update_existing_repos()
 {
-    local jobox_dir="${1}"
+    local rootdir="${1}"
     shift
     local force_dirty="${1}"
     shift
@@ -56,21 +58,17 @@ function update_existing_repos()
         } || continue
         cd "${subdir}"
         local repostatus
-        repostatus=$(git status --short | grep -v '^??' || true)
-        if [ -z "${repostatus}" ]; then
-            printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
-            # we intentionally do not quote below to allow word splitting
-            # shellcheck disable=SC2086
-            git ${gitargs}
-        elif "${force_dirty}"; then
-            printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
-            # we intentionally do not quote below to allow word splitting
-            # shellcheck disable=SC2086
-            git ${gitargs}
+        if "${force_dirty}"; then
+            run_git_cmd "${gitargs}"
         else
-            printf "\033[31m=========== DIRTY REPO %s ==========\033[0m\n" "${subdir}"
+            repostatus=$(git status --short | grep -v '^??' || true)
+            if [ -z "${repostatus}" ]; then
+                run_git_cmd "${gitargs}"
+            else
+                printf "\033[31m=========== DIRTY REPO %s ==========\033[0m\n" "${subdir}"
+            fi
         fi
-        cd "${jobox_dir}"
+        cd "${rootdir}"
     done
 }
 
@@ -117,16 +115,19 @@ function clone_any_missing_repos()
 
 function main()
 {
-    local JOBOX_DIR=${JOBOX:-$HOME/src/jobox}
-    local JOBOX_TEAM_NAME="jobox-team"
+    local ROOTDIR=.
+    local team_name_isset=false
     local FORCE_DIRTY=false
     local GITARGS=""
 
-    readonly JOBOX_DIR
-    readonly JOBOX_TEAM_NAME
+    local IGNORE_REPOS
 
-    while getopts "fh-" opt; do
+    while getopts "Cfht-" opt; do
         case ${opt} in
+            C)
+                ROOTDIR="${!OPTIND}"
+                OPTIND=$((OPTIND + 1))
+                ;;
             f) # force operation on dirty repos
                 FORCE_DIRTY=true
                 shift
@@ -139,6 +140,11 @@ Options: -f: update dirty repos
 EOF
                 exit 0
                 ;;
+            t)
+                TEAM_NAME="${!OPTIND}"
+                OPTIND=$((OPTIND + 2))
+                team_name_isset=true
+                ;;
             -)
                 GITARGS="${*}"
                 shift $#
@@ -150,19 +156,34 @@ EOF
         esac
     done
 
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
     if [ $# -ge 1 ] || [ -z "${GITARGS}" ]; then
         GITARGS="${*:-pull}"
     fi
 
+    if [ "${ROOTDIR}" == "." ]; then
+        ROOTDIR="$(pwd)"
+    fi
+
+    cd "${ROOTDIR}"
+
+    mapfile -t IGNORE_REPOS < .gitreposignore
+    if ! "${team_name_isset}"; then
+        TEAM_NAME="$(cat .gitreposteam)"
+    fi
+
     readonly FORCE_DIRTY
     readonly GITARGS
-
-    cd "${JOBOX_DIR}"
+    readonly ROOTDIR
+    readonly TEAM_NAME
+    readonly IGNORE_REPOS
 
     if [ "${GITARGS}" == "pull" ]; then
-        clone_any_missing_repos "${JOBOX_TEAM_NAME}"
+        clone_any_missing_repos "${TEAM_NAME}"
     fi
-    update_existing_repos "${JOBOX_DIR}" "${FORCE_DIRTY}" "${GITARGS}"
+    update_existing_repos "${ROOTDIR}" "${FORCE_DIRTY}" "${GITARGS}"
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
