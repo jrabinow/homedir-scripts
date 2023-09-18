@@ -56,7 +56,10 @@ function is_already_running()
 function spotify_launchnplay()
 {
     open -gja Spotify
-    sleep 5
+    sleep 1
+    # https://stackoverflow.com/a/56026170
+    osascript -e 'tell application "spotify" to set miniaturized of every window to true' || true
+    sleep 4
     osascript -e 'tell application "spotify" to play'
 }
 
