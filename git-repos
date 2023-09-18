@@ -2,6 +2,12 @@
 
 # updates all git repos in directory
 
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
 set -e -u
 set -o pipefail
 
@@ -169,7 +175,11 @@ EOF
 
     cd "${ROOTDIR}"
 
-    mapfile -t IGNORE_REPOS < .gitreposignore
+    if [ -f .gitreposignore ]; then
+        mapfile -t IGNORE_REPOS < .gitreposignore
+    else
+        IGNORE_REPOS=()
+    fi
     if ! "${team_name_isset}"; then
         TEAM_NAME="$(cat .gitreposteam)"
     fi
