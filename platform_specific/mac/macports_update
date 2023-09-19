@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
 set -e -u -o pipefail
 
 # upgrade all macports while doing some house cleaning
@@ -17,7 +23,7 @@ function usage()
     cat << EOF
 Usage: ${0##*/} [OPTION]...
 Options: -h, --help: show this help dialog
-         --selfupdate: run \`port selfupdate\`
+         --no-selfupdate: run \`port selfupdate\`
 EOF
 }
 
