@@ -142,6 +142,7 @@ function main()
     port upgrade outdated
     port uninstall leaves inactive rleaves || true
     port reclaim -N || true
+    port_cutleaves
     postinstall_tasks
 }
 

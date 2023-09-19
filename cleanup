@@ -132,6 +132,7 @@ function main()
         .jupyter
         .keras
         .kde
+        .kismet
         .lemminx
         .lftp
         .links
