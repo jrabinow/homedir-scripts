@@ -14,17 +14,18 @@ import argparse
 import logging
 import re
 import os
+from typing import Tuple, List
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-ch = logging.StreamHandler()
+formatter: logging.Formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+ch: logging.StreamHandler = logging.StreamHandler()
 ch.setFormatter(formatter)
 LOG.addHandler(ch)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
+def parse_args() -> Tuple[argparse.Namespace, List[str]]:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -40,29 +41,32 @@ def parse_args():
     return parser.parse_known_args()
 
 
-def main():
+def main() -> int:
     args, unknowns = parse_args()
 
-    filter_re = re.compile("^(curl|--compressed)$")
-    replace_header_re = re.compile("^range:\s*bytes=\d+-$")
-    aria_cmd_list = [
+    filter_re: re.Pattern[str] = re.compile("^(curl|--compressed)$")
+    replace_header_re: re.Pattern[str] = re.compile(r"^range:\s*bytes=\d+-$")
+    aria_cmd_list: List[str] = [
         "aria2c",
         "-x10",
         "-s20",
         "-m0",
     ]
+
+    arg: str
     for arg in unknowns:
         if not filter_re.match(arg) and not replace_header_re.match(arg):
             if arg == "-H":
                 arg = "--header"
             aria_cmd_list.append(f"'{arg}'")
     print("===========================")
-    cmd = " ".join(aria_cmd_list)
+    cmd: str = " ".join(aria_cmd_list)
     if args.norun:
         print(" ".join(aria_cmd_list))
     else:
-        ret = os.system(cmd)
+        ret: int = os.system(cmd)
         return ret
+    return 0
 
 
 if __name__ == "__main__":

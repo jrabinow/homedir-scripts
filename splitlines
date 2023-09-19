@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-import sys, getopt
+import getopt
+import sys
 
-def usage():
+def usage() -> None:
     sys.stderr.write(
-"""Usage: {0} [-d DELIM]\n""".format(sys.argv[0])
+"""Usage: {} [-d DELIM]\n""".format(sys.argv[0])
 )
 
-def main():
-    delim = '\t'
+def main() -> None:
+    delim: str = '\t'
     try:
         opts, args = getopt.getopt(sys.argv[1:], 'd:h', ['delimiter='])
     except getopt.GetoptError:
         usage()
-        exit(2)
+        sys.exit(2)
 
     for opt, arg in opts:
         if opt in ('-h', '--help'):
             usage()
-            exit(0)
+            sys.exit(0)
         elif opt in ('-d', '--delimiter'):
             delim = arg
         else:
             usage()
-            exit(1)
+            sys.exit(1)
 
     for line in sys.stdin:
         for segment in line.strip().split(delim):

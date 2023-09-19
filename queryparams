@@ -7,18 +7,19 @@ Write_description_and_usage_example_here
 
 import argparse
 import logging
-from urllib.parse import unquote, parse_qs, urlsplit
+from typing import Set, Dict, List
+from urllib.parse import unquote, parse_qs, urlsplit, SplitResult
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-ch = logging.StreamHandler()
+formatter: logging.Formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+ch: logging.StreamHandler = logging.StreamHandler()
 ch.setFormatter(formatter)
 LOG.addHandler(ch)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
+def parse_args() -> argparse.Namespace:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -41,7 +42,6 @@ def parse_args():
     )
     parser.add_argument(
         "url",
-        # type=int,
         nargs="+",
         help="url",
     )
@@ -50,7 +50,7 @@ def parse_args():
         action="store_true",
         help="display queryparam name (is default if not specifying specific params",
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
     if args.debug:
         LOG.setLevel(logging.DEBUG)
     return args
@@ -59,7 +59,7 @@ def parse_args():
 # urldefense.proofpoint.com uses its own encoding scheme, because screw
 # standards I guess 🙄
 # https://help.proofpoint.com/Threat_Insight_Dashboard/Concepts/How_do_I_decode_a_rewritten_URL%3F
-def decode(url, is_proofpoint=False):
+def decode(url, is_proofpoint=False) -> str:
     if url.startswith("http"):
         if is_proofpoint:
             url = url.replace("-", "%").replace("_", "/")
@@ -67,21 +67,22 @@ def decode(url, is_proofpoint=False):
     return url
 
 
-def main():
-    args = parse_args()
-    params_to_display = set(args.params)
+def main() -> int:
+    args: argparse.Namespace = parse_args()
+    params_to_display: Set[str] = set(args.params)
 
     for url in args.url:
-        is_proofpoint = url.startswith("https://urldefense.proofpoint.com/v2/")
-        parsed_url = urlsplit(url)
-        queryparams = parse_qs(parsed_url.query)
+        is_proofpoint: bool = url.startswith("https://urldefense.proofpoint.com/v2/")
+        parsed_url: SplitResult = urlsplit(url)
+        queryparams: Dict[str, List[str]] = parse_qs(parsed_url.query)
+
         for k, v in queryparams.items():
             if len(params_to_display) == 0 or k in params_to_display:
                 if args.decode:
-                    queryvals = [decode(e, is_proofpoint) for e in v]
+                    queryvals: List[str] = [decode(e, is_proofpoint) for e in v]
                 else:
-                    queryvals = v
-                fmt_queryvals = ", ".join(queryvals)
+                    queryvals: List[str] = v
+                fmt_queryvals: str = ", ".join(queryvals)
                 if len(params_to_display) == 0 or args.with_name:
                     print("{} -> {}".format(k, fmt_queryvals))
                 else:
