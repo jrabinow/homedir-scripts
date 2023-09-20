@@ -108,6 +108,11 @@ def parse_args():
         action="store_true",
         help="don't print modified/additional/moved section headers",
     )
+    parser.add_argument(
+        "--persist-lookup-tables",
+        action="store_true",
+        help="don't actually run the diff algorithm, instead save the lookup data to disk for later processing",
+    )
     output_format = parser.add_mutually_exclusive_group()
     output_format.add_argument(
         "--json",
@@ -217,9 +222,11 @@ def preprocess_into_datastructs(
 
 
 def save_state(
-    dirpath: str, hashdiff_data: HashDiffLookup, pathdiff_data: PathDiffLookup
+    dirpaths: List[str], hashdiff_data: HashDiffLookup, pathdiff_data: PathDiffLookup
 ) -> None:
-    savestate_filename: str = f"{dirpath}.dirdiff"
+    savestate_filename: str = "{}.dirdiff".format(
+        "_".join([os.path.basename(d) for d in dirpaths])
+    )
     with open(savestate_filename, "wb") as f:
         hashdiff_data_pickleable = {k: dict(v) for k, v in hashdiff_data.items()}
         pickle.dump((HOSTNAME, TIMESTAMP, hashdiff_data_pickleable, pathdiff_data), f)
@@ -355,23 +362,24 @@ def main():
     args = parse_args()
 
     hashdiff_data, pathdiff_data, realtime = preprocess_into_datastructs(args.dirpath)
-    if len(args.dirpath) == 1:
-        save_state(args.dirpath[0], hashdiff_data, pathdiff_data)
-    matched, unmatched = partition_matched_unmatched(hashdiff_data, args.dirpath)
-    modified, moved, additional = partition_unmatched_by_type(
-        unmatched, pathdiff_data, args.dirpath
-    )
-    print_results(
-        modified,
-        moved,
-        additional,
-        realtime=realtime,
-        ignore_modified=args.ignore_modified,
-        ignore_moved=args.ignore_moved,
-        ignore_additional=args.ignore_additional,
-        json_output=args.json,
-        silent=args.silent,
-    )
+    if args.persist_lookup_tables:
+        save_state(args.dirpath, hashdiff_data, pathdiff_data)
+    else:
+        matched, unmatched = partition_matched_unmatched(hashdiff_data, args.dirpath)
+        modified, moved, additional = partition_unmatched_by_type(
+            unmatched, pathdiff_data, args.dirpath
+        )
+        print_results(
+            modified,
+            moved,
+            additional,
+            realtime=realtime,
+            ignore_modified=args.ignore_modified,
+            ignore_moved=args.ignore_moved,
+            ignore_additional=args.ignore_additional,
+            json_output=args.json,
+            silent=args.silent,
+        )
 
 
 if __name__ == "__main__":
