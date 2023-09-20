@@ -17,11 +17,15 @@ import hashlib
 import json
 import logging
 import os
+import pickle
+import platform
 import stat
+import time
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
@@ -30,31 +34,43 @@ ch = logging.StreamHandler()
 ch.setFormatter(formatter)
 LOG.addHandler(ch)
 
+HOSTNAME: str = platform.node()
+TIMESTAMP: int = int(time.time())
+
+
 # types
-HexDigest = str
-
-
 @dataclasses.dataclass
 class DirDiffFile:
     rootdir: Path
     position: Path
     hexdigest: str
 
-    def __init__(self, rootdir: Path, path: Path):
+    def __init__(self, rootdir: Path, path: Path, machine=HOSTNAME):
         self.rootdir = rootdir
         self.position = path
-        self.hexdigest = file_hexdigest(self.absolute)
+        self.hexdigest = file_hexdigest(self.absolute())
+        self.machine = machine
+        self.time = TIMESTAMP
 
-    @property
-    def absolute(self):
-        return self.rootdir / self.position
+    def absolute(self, realtime=True):
+        if realtime:
+            return self.rootdir / self.position
+        else:
+            dt = datetime.utcfromtimestamp(self.time).isoformat()
+            return f"{dt} - {self.machine}::{self.rootdir}/{self.position}"
+
+
+HexDigest = str
+HashDiffLookup = Dict[HexDigest, Dict[Path, List[DirDiffFile]]]
+PathDiffLookup = Dict[Path, List[DirDiffFile]]
+MatchResults = Dict[HexDigest, List[DirDiffFile]]
 
 
 class JsonEncoder(json.JSONEncoder):
     def default(self, o):
         if dataclasses.is_dataclass(o):
             d = dataclasses.asdict(o)
-            d["path"] = o.absolute
+            d["path"] = o.absolute()
             return d
         if isinstance(o, Path):
             return str(o)
@@ -128,7 +144,7 @@ def apply_to_dir(dirpath, func):
     ]
 
 
-def file_hexdigest(filepath):
+def file_hexdigest(filepath) -> str:
     hasher = hashlib.sha1()
     BUFSIZ = 65536
     try:
@@ -151,33 +167,82 @@ def file_hexdigest(filepath):
     return hasher.hexdigest()
 
 
-def preprocess_into_datastructs(rootdirs: List[Path]):
+def preprocess_into_datastructs(
+    rootdirs: List[Path],
+) -> Tuple[HashDiffLookup, PathDiffLookup, bool]:
     # let's collect all the files from all the rootdirs and build our base data structures
-    hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
-    pathdiff_data: Dict[Path, List[DirDiffFile]] = defaultdict(list)
+    hashdiff_data: HashDiffLookup = defaultdict(lambda: defaultdict(list))
+    pathdiff_data: PathDiffLookup = defaultdict(list)
+    realtime: bool = True
 
     for rootdir in rootdirs:
-        rootdir_path = Path(rootdir)
-        with chdir(rootdir_path):
-            filelist = apply_to_dir(".", lambda x: x)
-        for f in filelist:
-            try:
-                ddf = DirDiffFile(rootdir_path, f)
-                hashdiff_data[ddf.hexdigest][ddf.position].append(ddf)
-                pathdiff_data[ddf.position].append(ddf)
-            except PermissionError as e:
-                LOG.warning(f"error processing {f}: {e}")
+        statdata = os.stat(rootdir)
+        if stat.S_ISDIR(statdata.st_mode):
+            rootdir_path = Path(rootdir)
+            with chdir(rootdir_path):
+                filelist = apply_to_dir(".", lambda x: x)
+            for f in filelist:
+                try:
+                    ddf = DirDiffFile(rootdir_path, f)
+                    hashdiff_data[ddf.hexdigest][ddf.position].append(ddf)
+                    pathdiff_data[ddf.position].append(ddf)
+                except PermissionError as e:
+                    LOG.warning(f"error processing {f}: {e}")
+        elif stat.S_ISREG(statdata.st_mode):
+            savedstate_hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]]
+            savedstate_pathdiff_data: Dict[Path, List[DirDiffFile]]
+            (
+                savedstate_hostname,
+                savedstate_ts,
+                savedstate_hashdiff_data,
+                savedstate_pathdiff_data,
+            ) = load_state(rootdir)
+            realtime = (
+                realtime
+                and savedstate_hostname == HOSTNAME
+                and savedstate_ts == TIMESTAMP
+            )
 
-    return hashdiff_data, pathdiff_data
+            for hd, data in savedstate_hashdiff_data.items():
+                for path, dirdiff_filelist in data.items():
+                    hashdiff_data[hd][path].extend(dirdiff_filelist)
+            for path, dirdiff_filelist in savedstate_pathdiff_data.items():
+                pathdiff_data[path].extend(dirdiff_filelist)
+        else:
+            raise RuntimeError(
+                "dirdiff only supports directories and dirdiff_state (python pickle) files"
+            )
+
+    return hashdiff_data, pathdiff_data, realtime
+
+
+def save_state(
+    dirpath: str, hashdiff_data: HashDiffLookup, pathdiff_data: PathDiffLookup
+) -> None:
+    savestate_filename: str = f"{dirpath}.dirdiff"
+    with open(savestate_filename, "wb") as f:
+        hashdiff_data_pickleable = {k: dict(v) for k, v in hashdiff_data.items()}
+        pickle.dump((HOSTNAME, TIMESTAMP, hashdiff_data_pickleable, pathdiff_data), f)
+
+
+def load_state(
+    dirdiff_state_path: Path,
+) -> Tuple[str, int, HashDiffLookup, PathDiffLookup]:
+    with open(dirdiff_state_path, "rb") as f:
+        (
+            dirdiff_state_hostname,
+            dirdiff_state_ts,
+            hashdiff_data,
+            pathdiff_data,
+        ) = pickle.load(f)
+    return dirdiff_state_hostname, dirdiff_state_ts, hashdiff_data, pathdiff_data
 
 
 def partition_matched_unmatched(
-    hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]], rootdirs: List[Path]
-):
-    matched: Dict[HexDigest, List[DirDiffFile]] = defaultdict(list)
-    unmatched: Dict[HexDigest, List[DirDiffFile]] = defaultdict(list)
+    hashdiff_data: HashDiffLookup, rootdirs: List[Path]
+) -> Tuple[MatchResults, MatchResults]:
+    matched: MatchResults = defaultdict(list)
+    unmatched: MatchResults = defaultdict(list)
 
     # dir1/foopath1/barfile1 is matched with dir2/foopath2/barfile2 if:
     #    - "foopath1" == "foopath2" and "barfile1" == "barfile2"
@@ -188,7 +253,8 @@ def partition_matched_unmatched(
         for _, filelist in filedata.items():
             if len(filelist) == len_rootdirs:
                 assert (
-                    len({f.rootdir for f in filelist}) == len_rootdirs
+                    len({(f.time, f.machine, f.rootdir) for f in filelist})
+                    == len_rootdirs
                     and len({f.hexdigest for f in filelist}) == 1
                     and len({f.position for f in filelist}) == 1
                 ), ("matching error: %s" % filelist)
@@ -201,10 +267,10 @@ def partition_matched_unmatched(
 
 
 def partition_unmatched_by_type(
-    unmatched: Dict[HexDigest, List[DirDiffFile]],
-    pathdiff_data: Dict[Path, List[DirDiffFile]],
+    unmatched: MatchResults,
+    pathdiff_data: PathDiffLookup,
     rootdirs: List[Path],
-):
+) -> Tuple[PathDiffLookup, List[List[DirDiffFile]], List[DirDiffFile]]:
     # We distinguish 3 cases for unmatched files:
     #  - modified file
     #  - moved/renamed file
@@ -220,7 +286,7 @@ def partition_unmatched_by_type(
     #  - barfile1 is not modified as per the definition above
     #  - barfile1 is not moved/renamed as per the definition above
     len_rootdirs = len(rootdirs)
-    modified: Dict[Path, List[DirDiffFile]] = defaultdict(list)
+    modified: PathDiffLookup = defaultdict(list)
     moved: List[List[DirDiffFile]] = []
     additional: List[DirDiffFile] = []
 
@@ -246,15 +312,16 @@ def partition_unmatched_by_type(
 
 
 def print_results(
-    modified: Dict[Path, List[DirDiffFile]],
+    modified: PathDiffLookup,
     moved: List[List[DirDiffFile]],
     additional: List[DirDiffFile],
-    ignore_modified=False,
-    ignore_moved=False,
-    ignore_additional=False,
-    json_output=False,
-    silent=False,
-):
+    realtime: bool = True,
+    ignore_modified: bool = False,
+    ignore_moved: bool = False,
+    ignore_additional: bool = False,
+    json_output: bool = False,
+    silent: bool = False,
+) -> None:
     output_dict = {}
     if not ignore_modified:
         output_dict["modified"] = {str(k): v for k, v in modified.items()}
@@ -275,19 +342,21 @@ def print_results(
             if not silent:
                 print("moved/renamed files:")
             for ren in output_dict["moved"]:
-                moved_str = "\t".join([str(f.absolute) for f in ren])
+                moved_str = "\t".join([str(f.absolute(realtime=realtime)) for f in ren])
                 print(moved_str)
         if not ignore_additional:
             if not silent:
                 print("additional files:")
             for add in output_dict["added"]:
-                print(add.absolute)
+                print(add.absolute(realtime=realtime))
 
 
 def main():
     args = parse_args()
 
-    hashdiff_data, pathdiff_data = preprocess_into_datastructs(args.dirpath)
+    hashdiff_data, pathdiff_data, realtime = preprocess_into_datastructs(args.dirpath)
+    if len(args.dirpath) == 1:
+        save_state(args.dirpath[0], hashdiff_data, pathdiff_data)
     matched, unmatched = partition_matched_unmatched(hashdiff_data, args.dirpath)
     modified, moved, additional = partition_unmatched_by_type(
         unmatched, pathdiff_data, args.dirpath
@@ -296,11 +365,12 @@ def main():
         modified,
         moved,
         additional,
-        args.ignore_modified,
-        args.ignore_moved,
-        args.ignore_additional,
-        args.json,
-        args.silent,
+        realtime=realtime,
+        ignore_modified=args.ignore_modified,
+        ignore_moved=args.ignore_moved,
+        ignore_additional=args.ignore_additional,
+        json_output=args.json,
+        silent=args.silent,
     )
 
 
