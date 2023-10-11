@@ -35,7 +35,9 @@ function set_param()
     shift
     value="${*}"
     shift
-    sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}"
+    (grep -qE "^${param}(\s+)" "${portfile}" \
+        && sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}") \
+        || echo -e "\n${param}   ${value}" >> "${portfile}"
 }
 
 function readhash()
@@ -67,9 +69,17 @@ function handle_google-cloud-sdk()
     sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
 }
 
+# https://github.com/macports/macports-ports/pull/20805
+function handle_libgit2()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" configure.ldflags-append -liconv
+}
+
 function macports_localchanges()
 {
-    readonly PORTS="google-cloud-sdk"
+    readonly PORTS="google-cloud-sdk libgit2"
     readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
