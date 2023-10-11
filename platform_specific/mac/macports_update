@@ -51,7 +51,9 @@ function readhash()
 
 # use python3.11. gcloud command ignores the dependency version anyways and
 # tries to intelligently select the python version on its own. Spoiler alert:
-# this approach is dumb
+# this approach is dumb. Instead of adding magic where there was none, Google
+# should use the default python version and at worst fail fast and complain
+# loudly.
 # https://github.com/macports/macports-ports/pull/13936
 function handle_google-cloud-sdk()
 {
