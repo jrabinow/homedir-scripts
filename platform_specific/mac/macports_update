@@ -69,17 +69,9 @@ function handle_google-cloud-sdk()
     sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
 }
 
-# https://github.com/macports/macports-ports/pull/20805
-function handle_libgit2()
-{
-    portfile="${1}"
-    shift
-    set_param "${portfile}" configure.ldflags-append -liconv
-}
-
 function macports_localchanges()
 {
-    readonly PORTS="google-cloud-sdk libgit2"
+    readonly PORTS="google-cloud-sdk"
     readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
     # these ports change often and won't be fixed soon
