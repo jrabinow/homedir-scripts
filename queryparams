@@ -12,7 +12,9 @@ from urllib.parse import unquote, parse_qs, urlsplit, SplitResult
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
-formatter: logging.Formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+formatter: logging.Formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(message)s"
+)
 ch: logging.StreamHandler = logging.StreamHandler()
 ch.setFormatter(formatter)
 LOG.addHandler(ch)
@@ -29,7 +31,7 @@ def parse_args() -> argparse.Namespace:
         help="enable debug logging information",
     )
     parser.add_argument(
-        "--decode",
+        "--no-decode",
         action="store_true",
         help="decode query params when urlencoded",
     )
@@ -78,15 +80,16 @@ def main() -> int:
 
         for k, v in queryparams.items():
             if len(params_to_display) == 0 or k in params_to_display:
-                if args.decode:
-                    queryvals: List[str] = [decode(e, is_proofpoint) for e in v]
-                else:
+                if args.no_decode:
                     queryvals: List[str] = v
+                else:
+                    queryvals: List[str] = [decode(e, is_proofpoint) for e in v]
                 fmt_queryvals: str = ", ".join(queryvals)
                 if len(params_to_display) == 0 or args.with_name:
                     print("{} -> {}".format(k, fmt_queryvals))
                 else:
                     print(fmt_queryvals)
+    return 0
 
 
 if __name__ == "__main__":
