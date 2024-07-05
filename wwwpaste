@@ -56,14 +56,19 @@ function main()
             ;;
         post)
             if [ "${#}" -eq 0 ]; then
-                curl -X POST "https://paste.rs/" --data-binary @-
+                curl -s -X POST "https://paste.rs/" --data-binary @- \
+                    | pbcopy
             else
                 file="${1}"
                 shift
-                test -r "${file}" && curl -X POST "https://paste.rs/" --data-binary "@${file}"
+                test -r "${file}" \
+                    && curl -s -X POST "https://paste.rs/" --data-binary "@${file}" \
+                    | pbcopy
             fi
+            pbpaste
+            printf "\n"
             ;;
-        delete)
+        del*)
             id="${1##https://paste.rs/}"
             shift
             curl -X DELETE "https://paste.rs/${id}"
