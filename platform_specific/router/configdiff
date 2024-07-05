@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+# write some cool doc here
+
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+set -e -u
+set -o pipefail
+
+function usage()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]... FILE1 FILE2
+
+Options:
+    -h, --help: show this help dialog
+EOF
+}
+
+function normalize_file_contents()
+{
+    FILE="${1}"
+    shift
+    sed -E "s/\t/    /g;s/'([\\w0-9\\.-]+)'(\\s+#[^#]*)?$/\\1\\2/" "${FILE}"
+}
+
+function main()
+{
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h) # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
+    FILE1="${1}"
+    shift
+    FILE2="${1}"
+    shift
+
+    vimdiff -c 'set diffopt+=iwhiteall' <(normalize_file_contents "${FILE1}") <(normalize_file_contents "${FILE2}")
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
