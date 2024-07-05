@@ -1,5 +1,27 @@
 #!/usr/bin/env bash
 
+# upgrade all macports while doing some house cleaning
+# https://stackoverflow.com/a/7491014
+
+# ==============================================================
+# ======================= PORT SPECIFIC ========================
+# ==============================================================
+#
+readonly PORTS=""
+# these ports change often and won't be fixed soon
+readonly SKIP_PORT_MD5=""
+#function handle_ghidra()
+#{
+#    portfile="${1}"
+#    shift
+#    set_param "${portfile}" java.version 17+
+#    set_param "${portfile}" github.setup 'NationalSecurityAgency ghidra 10.4 Ghidra_ _build'
+#}
+
+# ==============================================================
+# ==============================================================
+# ==============================================================
+
 if [ -n "${DEBUG}" ]; then
     exec 5> /tmp/bash_debug_output.txt
     BASH_XTRACEFD="5"
@@ -7,9 +29,6 @@ if [ -n "${DEBUG}" ]; then
     set -x -T
 fi
 set -e -u -o pipefail
-
-# upgrade all macports while doing some house cleaning
-# https://stackoverflow.com/a/7491014
 
 # freezeports_hashes file format:
 # $ cat ~/.local/share/macports/freezeports_hashes
@@ -40,6 +59,31 @@ function set_param()
         || echo -e "\n${param}   ${value}" >> "${portfile}"
 }
 
+function handle_depends()
+{
+    portfile="${1}"
+    shift
+    action="${1}"
+    shift
+    value="${1}"
+    shift
+
+    case "${action}" in
+        add)
+            printf 'IMPLEMENT ME!\n'
+            exit 1
+            ;;
+        rm)
+            sed -i -E "s/\bport:${value}\b//g" "${portfile}"
+            ;;
+        mv)
+            newval="${1}"
+            sed -i -E "s/\bport:${value}\b/port:${newval}/g" "${portfile}"
+            shift
+            ;;
+    esac
+}
+
 function readhash()
 {
     local portname="${1}"
@@ -51,31 +95,9 @@ function readhash()
     hashes["${portname}"]="$(awk "/${portname}/ {print \$1}" "${FREEZEPORTS_HASHES}")"
 }
 
-# use python3.11. gcloud command ignores the dependency version anyways and
-# tries to intelligently select the python version on its own. Spoiler alert:
-# this approach is dumb. Instead of adding magic where there was none, Google
-# should use the default python version and at worst fail fast and complain
-# loudly.
-# https://github.com/macports/macports-ports/pull/13936
-function handle_google-cloud-sdk()
-{
-    portfile="${1}"
-    shift
-    py_version=3.11
-    set_param "${portfile}" python.default_version "$(tr -d '.' <<< "${py_version}")"
-    set_param "${portfile}" revision 1
-    # disable patches
-    sed -i -E '/# Default to the MacPorts Python binary/,/^$/ d' "${portfile}"
-    sed -i -E '/reinplace "s\|\^#!\/usr\/bin\/env python/,/^$/ d' "${portfile}"
-}
-
 function macports_localchanges()
 {
-    readonly PORTS="google-cloud-sdk"
-    readonly SKIP_PORT_MD5="google-cloud-sdk"
     declare -A freezeports_md5=()
-    # these ports change often and won't be fixed soon
-
     for portname in ${PORTS}; do
         readhash "${portname}"
         portfile="$(port file "${portname}")"
@@ -97,15 +119,12 @@ function macports_localchanges()
 
 function postinstall_tasks()
 {
-    # google-cloud-sdk is built remotely, updating the portfile changes nothing T_T
-    port contents google-cloud-sdk \
-        | grep /opt/local/bin \
-        | xargs readlink \
-        | xargs -I% file /opt/local/bin/% \
-        | grep 'POSIX shell script' \
-        | cut -d: -f1 \
-        | xargs sudo sed -i -E 's|CLOUDSDK_PYTHON=(.*)/3\.9/(.*)python3\.9|CLOUDSDK_PYTHON=\1/3.11/\2python3.11|'
     sudo rm -f /opt/local/etc/gitconfig
+
+    # shellcheck disable=SC2016
+    port contents keychain \
+        | grep /opt/local/bin \
+        | xargs sudo sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
 }
 
 function main()
