@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "-b",
         "--basedir",
-        default="/Volumes/My Passport/Backups.backupdb",
+        default="/Volumes/.timemachine",
         help="specify time machine backup db dir",
     )
     parser.add_argument(
@@ -85,7 +85,9 @@ def main():
 
     backupsdir = os.path.join(args.basedir, args.device)
     for filearg in args.FILE:
-        create_symlinks_for_file(args.SYMLINK_DIR, backupsdir, filearg, args.always_symlink)
+        create_symlinks_for_file(
+            args.SYMLINK_DIR, backupsdir, filearg, args.always_symlink
+        )
 
 
 if __name__ == "__main__":
