@@ -36,6 +36,7 @@ function main()
         .cargo
         .CFUserTextEncoding
         .cgobanrc
+        .colima
         .config/abrt
         .config/asciinema
         .config/binwalk
@@ -100,6 +101,7 @@ function main()
         .electron-gyp
         .elinks
         .emacs.d
+        .erlang.cookie
         .evolution
         .fastboot
         .fontconfig
@@ -109,6 +111,7 @@ function main()
         .gdb_history
         .gegl-0.0
         .getdown
+        .ghidra
         .gimp-2.8
         .git-credential-cache
         .gksu.lock
@@ -135,6 +138,7 @@ function main()
         .kismet
         .lemminx
         .lftp
+        .lima
         .links
         .links2
         .lldb
@@ -205,6 +209,7 @@ function main()
         .thumbnails
         .tmp
         .tooling
+        .ts_node_repl_history
         .tuist
         .Trash
         .update-notifier
@@ -245,6 +250,7 @@ function main()
         .mysql_history
         .node_repl_history
         .npmrc
+        .ocamldebug_history
         .ophcrackrc
         .pdbhistory
         .pEp_management.db
@@ -297,12 +303,148 @@ function main()
         www_vmtouch_db_cache.json
         com.apple.launchd.*
     )
+    mac_library_caches_files=(
+        Chromium
+        CloudKit
+        Cypress
+        "Docker Desktop"
+        Firefox
+        GameKit
+        GeoServices
+        Google
+        "Google Earth"
+        JNA
+        Jedi
+        JetBrains
+        KSCrash
+        Mozilla
+        Nuitka
+        Passkit
+        "Python Entry Points"
+        RDFileSearch_crashesLog.plist
+        SentryCrash
+        SwiftLint
+        "TurboTax 2023"
+        WhatsApp.ShipIt
+        Yarn
+        aerc
+        app.riftshare
+        askpermissiond
+        black
+        ccache
+        com.apple.AMPDevicesAgent
+        com.apple.AMPLibraryAgent
+        com.apple.AppStore
+        com.apple.AppleMediaServices
+        com.apple.AvatarKit
+        com.apple.DictionaryServices
+        com.apple.HomeKit
+        com.apple.Music
+        com.apple.NewDeviceOutreach
+        com.apple.Spotlight
+        com.apple.WalletSettingsExtension
+        com.apple.accountsd
+        com.apple.akd
+        com.apple.amsaccountsd
+        com.apple.amsengagementd
+        com.apple.ap.adprivacyd
+        com.apple.appstoreagent
+        com.apple.assistant_cdmd
+        com.apple.assistantd
+        com.apple.automator.actionCache-bundleLocations.plist
+        com.apple.automator.actionCache-system-standardLocations.plist
+        com.apple.bookassetd
+        com.apple.bookdatastored
+        com.apple.businessservicesd
+        com.apple.cache_delete
+        com.apple.chrono
+        com.apple.commerce
+        com.apple.containermanagerd
+        com.apple.ctcategories.service
+        com.apple.dataaccess.dataaccessd
+        com.apple.dt.Instruments
+        com.apple.dt.Xcode
+        com.apple.dt.xcodebuild
+        com.apple.feedbacklogger
+        com.apple.gamed
+        com.apple.helpd
+        com.apple.homed
+        com.apple.iCloudNotificationAgent
+        com.apple.iTunesCloud
+        com.apple.ibtool
+        com.apple.icloud.fmfd
+        com.apple.itunescloudd
+        com.apple.nbagent
+        com.apple.nsservicescache.plist
+        com.apple.nsurlsessiond
+        com.apple.parsecd
+        com.apple.passd
+        com.apple.preferencepanes.usercache
+        com.apple.proactive.eventtracker
+        com.apple.python
+        com.apple.remindd
+        com.apple.siri.embeddedspeech
+        com.apple.siriknowledged
+        com.apple.sirittsd
+        com.apple.storekitagent
+        com.apple.systemsettings.menucache
+        com.apple.tipsd
+        com.apple.tiswitcher.cache
+        com.apple.translationd
+        com.figma.agent
+        com.google.GoogleUpdater
+        com.google.KeyStone
+        com.google.SoftwareUpdate
+        com.hnc.Discord.ShipIt
+        com.intuit.turbotax.2023
+        com.objective-see.KnockKnock
+        com.objective-see.Netiquette
+        com.objective-see.TaskExplorer
+        com.objective-see.blockblock.helper
+        com.objective-see.dnd.helper
+        com.objective-see.lulu.app
+        com.objective-see.oversight
+        com.plausiblelabs.crashreporter.data
+        com.postmanlabs.mac
+        com.postmanlabs.mac.ShipIt
+        com.sonymobile.Xperia-Companion
+        com.spotify.client.helper
+        docker-compose
+        familycircled
+        fanal
+        gopls
+        go-build
+        icon-cache.kcache
+        im.riot.app.ShipIt
+        js-v8flags
+        kdeconnect.daemon
+        kdeconnect.sms
+        lima
+        main.kts.compiled.cache
+        ms-playwright
+        net.tunnelblick.tunnelblick
+        node-gyp
+        org.herf.FLux
+        org.mozilla.crashreporter
+        org.swift.swiftpm
+        org.videolan.vlc
+        org.webkit.Playwright
+        org.whispersystems.signal-desktop.ShipIt
+        pip
+        rga
+        staticcheck
+        swift-package
+        update-informer-rs
+    )
 
     # separately to avoid any array issues
     #rm -rf $HOME/.android/!(avd)
 
-    # OSX is lame
     if [[ ${OSTYPE} =~ darwin ]]; then
+        for osxcacheentry in "${mac_library_caches_files[@]}"; do
+            rm -rf ~/Library/Caches/"${osxcacheentry}"
+        done
+        # OSX is lame
         test -d ~/.Trash && (/bin/chmod -N ~/.Trash || echo fuck mac)
     fi
 
