@@ -20,6 +20,7 @@ import os
 import pickle
 import platform
 import stat
+import sys
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -101,12 +102,6 @@ def parse_args():
         "--ignore-additional",
         action="store_true",
         help="don't show files if they weren't either moved or modified",
-    )
-    parser.add_argument(
-        "-s",
-        "--silent",
-        action="store_true",
-        help="don't print modified/additional/moved section headers",
     )
     parser.add_argument(
         "--persist-lookup-tables",
@@ -235,13 +230,18 @@ def save_state(
 def load_state(
     dirdiff_state_path: Path,
 ) -> Tuple[str, int, HashDiffLookup, PathDiffLookup]:
-    with open(dirdiff_state_path, "rb") as f:
-        (
-            dirdiff_state_hostname,
-            dirdiff_state_ts,
-            hashdiff_data,
-            pathdiff_data,
-        ) = pickle.load(f)
+    try:
+        with open(dirdiff_state_path, "rb") as f:
+            (
+                dirdiff_state_hostname,
+                dirdiff_state_ts,
+                hashdiff_data,
+                pathdiff_data,
+            ) = pickle.load(f)
+    except (pickle.PickleError, ValueError) as e:
+        LOG.fatal(f"{dirdiff_state_path} doesn't have the appropriate format")
+        sys.exit(1)
+
     return dirdiff_state_hostname, dirdiff_state_ts, hashdiff_data, pathdiff_data
 
 
@@ -327,7 +327,6 @@ def print_results(
     ignore_moved: bool = False,
     ignore_additional: bool = False,
     json_output: bool = False,
-    silent: bool = False,
 ) -> None:
     output_dict = {}
     if not ignore_modified:
@@ -341,21 +340,15 @@ def print_results(
         print(json.dumps(output_dict, indent=2, cls=JsonEncoder))
     else:
         if not ignore_modified:
-            if not silent:
-                print("modified files:")
             for filepath in output_dict["modified"]:
-                print(filepath)
+                print("modified:", filepath)
         if not ignore_moved:
-            if not silent:
-                print("moved/renamed files:")
             for ren in output_dict["moved"]:
                 moved_str = "\t".join([str(f.absolute(realtime=realtime)) for f in ren])
-                print(moved_str)
+                print("moved/renamed:", moved_str)
         if not ignore_additional:
-            if not silent:
-                print("additional files:")
             for add in output_dict["added"]:
-                print(add.absolute(realtime=realtime))
+                print("added:", add.absolute(realtime=realtime))
 
 
 def main():
@@ -378,7 +371,6 @@ def main():
             ignore_moved=args.ignore_moved,
             ignore_additional=args.ignore_additional,
             json_output=args.json,
-            silent=args.silent,
         )
 
 
