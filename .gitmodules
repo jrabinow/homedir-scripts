@@ -1,9 +1,9 @@
-[submodule "thirdparty/osx-cpu-temp"]
-	path = src/thirdparty/osx-cpu-temp
-	url = https://github.com/lavoiesl/osx-cpu-temp.git
 [submodule "thirdparty/sack"]
 	path = src/thirdparty/sack
 	url = https://github.com/garaud/sack
 [submodule "thirdparty/iproute2mac"]
 	path = src/thirdparty/iproute2mac
 	url = https://github.com/brona/iproute2mac.git
+[submodule "thirdparty/smctemp"]
+	path = src/thirdparty/smctemp
+	url = https://github.com/narugit/smctemp

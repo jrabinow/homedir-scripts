@@ -1,22 +1,22 @@
 OS := $(shell uname)
 
 ifeq ($(OS), Darwin)
-	OSXCPUTEMP_BUILD := cd osx-cpu-temp && $(MAKE) && ln -sf ~/bin/src/thirdparty/osx-cpu-temp/osx-cpu-temp ~/bin
+	OSX_SMCTEMP_BUILD := cd smctemp && $(MAKE) && ln -sf ~/bin/src/thirdparty/smctemp/smctemp ~/bin
 else
-	OSXCPUTEMP_BUILD := @echo "Skipping osxcputemp"
+	OSX_SMCTEMP_BUILD := @echo "Skipping smctemp"
 endif
 
-all: checkout osxcputemp sack
+all: checkout smctemp sack
 
 checkout:
 	git submodule update --init
 
-osxcputemp:
-	$(OSXCPUTEMP_BUILD)
+smctemp:
+	$(OSX_SMCTEMP_BUILD)
 
 sack:
 	for binary in sag sack sgrep srg ; do \
 		cd ~/bin; ln -sf ./src/thirdparty/sack/$$binary . ; cd - ; \
 	done
 
-.PHONY: sack osxcputemp
+.PHONY: sack smctemp

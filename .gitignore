@@ -1,13 +1,14 @@
 *.swp
 /codemod
+/configdiff
 /cronenborg
 /imgcat
 /loggrep
 /luksmount
 /macports_pybump
 /macports_update
-/osx-cpu-temp
 /reset_mtimes.py
+/smctemp
 /timemachine
 banner
 exitcodes
