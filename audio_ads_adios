@@ -3,6 +3,8 @@
 # Auto-kill+restart spotify when it tries to play an ad. This script will keep
 # running in the background and will automatically stop running when spotify
 # stops running
+#
+# https://github.com/Jugran/spotify-ad-killer/blob/master/spotify-ad-killer.sh
 
 if [ -n "${DEBUG}" ]; then
     exec 5> /tmp/bash_debug_output.txt
@@ -26,13 +28,13 @@ function monitor_and_skip_ads()
     old_track_id=""
 
     while is_spotify_running; do
-        track_id="$(osascript -e 'tell application "spotify" to id of current track' || echo "")"
-        if [[ ${track_id} =~ "spotify:ad:" ]]; then
-            pkill -i spotify
+        track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
+        if [[ ${track_id} =~ "spotify:ad:" || "${track_id}" == "" ]]; then
+            pkill -9 -i spotify
             sleep 1
             spotify_launchnplay
-            track_id="$(osascript -e 'tell application "spotify" to id of current track' || echo "")"
-            if [ "${track_id}" == "${old_track_id}" ]; then
+            track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
+            if [[ ${track_id} =~ "spotify:ad:" || "${track_id}" == "" || "${track_id}" == "${old_track_id}" ]]; then
                 osascript -e 'tell application "spotify" to next track'
             fi
             osascript -e 'tell application "spotify" to play'
@@ -47,7 +49,7 @@ function is_spotify_running()
     test "$(pgrep -i spotify)" != ""
 }
 
-function is_already_running()
+function is_audio_adblocker_running()
 {
     # greater than 2: one for the self, and one for the fork
     test "$(pgrep -alf 'bash' | grep -c audio_ads_adios)" -gt 2
@@ -55,12 +57,12 @@ function is_already_running()
 
 function spotify_launchnplay()
 {
-    open -gja Spotify
-    sleep 1
-    # https://stackoverflow.com/a/56026170
-    osascript -e 'tell application "spotify" to set miniaturized of every window to true' || true
-    sleep 4
-    osascript -e 'tell application "spotify" to play'
+    osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true' \
+        -e 'tell application "Spotify" to launch' \
+        -e 'delay 0.5' \
+        -e 'tell application foregroundApp to activate' \
+        -e 'delay 2' \
+        -e 'tell application "spotify" to play'
 }
 
 function main()
@@ -96,7 +98,7 @@ function main()
         spotify_launchnplay
     fi
 
-    if is_already_running; then
+    if is_audio_adblocker_running; then
         printf "already running\n"
     else
         monitor_and_skip_ads &
