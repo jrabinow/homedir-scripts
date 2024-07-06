@@ -1,0 +1,22 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+sub main {
+    foreach my $path (@ARGV) {
+        my @components = split(/\//, $path);
+        # skip first empty whitespace
+        shift @components if $components[0] eq '';
+        my $checkpath = '';
+        my $oldpath = '';
+
+        foreach my $dir (@components) {
+            $oldpath = $checkpath;
+            $checkpath = $checkpath . "/" . $dir;
+            die $checkpath . " doesn't exist\n" if (! -e $checkpath);
+        }
+    }
+}
+
+main();
