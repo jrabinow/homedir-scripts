@@ -7,6 +7,8 @@
 /luksmount
 /macports_pybump
 /macports_update
+/nest
+/pm2
 /reset_mtimes.py
 /smctemp
 /timemachine
