@@ -10,8 +10,7 @@ set -e -u
 set -o pipefail
 
 # needs - jq, dos2unix (both available in macports or homebrew)
-#       - ghpr from https://github.com/Idnan/github-pr.git
-#         clone the repo, put the binary in your PATH and go through the README
+#       - gh from https://cli.github.com/ or https://ports.macports.org/port/gh/
 #
 # place this script in your PATH, for example ~/bin
 # chmod +x ~/bin/git-pr
@@ -24,15 +23,20 @@ set -o pipefail
 #          -t ARG: use title ARG for PR
 #          -h: show this help dialog
 
+# shellcheck disable=SC1090
 source ~/.local/share/bash/perscreds
+# shellcheck disable=SC1090
 source ~/.local/share/bash/joboxcreds
 
 function main()
 {
+    # shellcheck disable=SC2153
     readonly jira_domain="${JIRA_DOMAIN}"
     readonly jira_user="${JIRA_LOGIN}"
+    # shellcheck disable=SC2153
     readonly jira_api_token="${JIRA_API_TOKEN}"
-    dst_branch=integration
+    dst_branch=master
+
     while getopts "b:ht:" opt; do
         case ${opt} in
             b)
@@ -59,65 +63,81 @@ EOF
     shift $((OPTIND - 1))
     [[ "${1:-}" == '--' ]] && shift
 
-    ticket_id="${1:-}"
+    arg="${1:-}"
     shift || true
-    jira_ticket=false
-    case "${ticket_id}" in
-        CS* | DA* | DISP* | ROCKET* | OM* | OPS* | PRODUCT* | BS* | ENG*)
-            jira_ticket=true
-            ;;
-        ?)
-            jira_ticket=false
-            ;;
-    esac
-    if "${jira_ticket}"; then
-        ticket_info=$(curl -s -u "${jira_user}:${jira_api_token}" \
-            -H 'Content-Type: application/json' \
-            "${jira_domain}/rest/api/latest/issue/${ticket_id}")
-        pr_title="${ticket_id}: ${title:-$(git log -n1 --pretty=format:%B)}"
-        ticket_description="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" | dos2unix)"
-        if [[ "${ticket_description}" == 'null' ]]; then
-            ticket_description=""
-        fi
-        description="${jira_domain}/browse/${ticket_id}"$'\n'$"${ticket_description/null/}"
+
+    local jira_ticket=false
+    local use_file=false
+    if [ -f "${arg}" ]; then
+        use_file=true
+        filepath="${arg}"
     else
-        printf "no ticket info\n"
-        pr_title=${title:-$(git log -n1 --pretty=format:%B)}
-        description=""
+        ticket_id="${arg}"
+        case "${ticket_id}" in
+            CS* | DA* | DISP* | ROCKET* | OM* | OPS* | PRODUCT* | BS* | ENG* | JOBOXOPS* | JOBOX*)
+                jira_ticket=true
+                ;;
+            ?)
+                jira_ticket=false
+                ;;
+        esac
+        if "${jira_ticket}"; then
+            ticket_info=$(curl -s -u "${jira_user}:${jira_api_token}" \
+                -H 'Content-Type: application/json' \
+                "${jira_domain}/rest/api/latest/issue/${ticket_id}")
+            pr_title="${ticket_id}: ${title:-$(git log -n1 --pretty=format:%B)}"
+            ticket_description="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" \
+                | dos2unix \
+                | sed -E 's/\[([^\|]+)\|([^\|]+)\|smart-link\]/[\1](\2)/g')"
+            if [[ "${ticket_description}" == 'null' ]]; then
+                ticket_description=""
+            fi
+            description="${jira_domain}/browse/${ticket_id}"$'\n'$"${ticket_description/null/}"
+        else
+            printf "no ticket info\n"
+            pr_title=${title:-$(git log -n1 --pretty=format:%B)}
+            description=""
+        fi
     fi
-    commit_desc_file=$(mktemp -t)
-    # shellcheck disable=SC2064
-    trap "rm '${commit_desc_file}'" EXIT
-    cat > "${commit_desc_file}" << EOF
+
+    git_src_branch=$(git rev-parse --abbrev-ref HEAD)
+    if "${use_file}"; then
+        commit_desc_file="${filepath}"
+    else
+        commit_desc_file="$(mktemp -p . "${git_src_branch//\//_}.XXXXXX.txt")"
+        cat > "${commit_desc_file}" << EOF
 Title: ${pr_title}
 
 Branch: ${dst_branch}
 
-## Summary:
+## Summary
 ${pr_title}
 
-## Description:
+## Description
 ${description}
 
-## Test plan:
+## Test plan
 testinprod
 EOF
+    fi
     vim -c 'set formatoptions-=cro' "${commit_desc_file}"
     pr_title=$(grep '^Title:' "${commit_desc_file}" | cut -d' ' -f2-)
     dst_branch=$(grep '^Branch: ' "${commit_desc_file}" | cut -d' ' -f2-)
-    summary=$(awk '/^## Summary:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    description=$(awk '/^## Description:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    test_plan=$(awk '/^## Test plan:/,/^$/' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    pr_desc="$(printf "%s\n\n%s\n\n%s\n" "${summary}" "${description}" "${test_plan}")"
+    # https://stackoverflow.com/a/38972737
+    summary=$(awk '/^## Summary/{flag=1; next} /^## Description/{flag=0} flag' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
+    description=$(awk '/^## Description/{flag=1; next} /^## Test plan/{flag=0} flag' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
+    test_plan=$(sed -E '1,/^## Test plan/d' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
+    pr_desc="$(printf "## Summary\n%s\n\n## Description\n%s\n\n## Test plan\n%s\n" "${summary}" "${description}" "${test_plan}")"
     printf -- "%s\n%s\n------------------\n%s\n----------------------\n" "${pr_title}" "${dst_branch}" "${pr_desc}"
-    src_branch=$(git rev-parse --abbrev-ref HEAD)
     remote=$(git remote)
     remote_src_branch=$(git rev-parse --abbrev-ref --symbolic-full-name HEAD || true)
     if [[ -z "${remote_src_branch}" ]]; then
-        git branch -u "${remote}" "${src_branch}"
+        git branch -u "${remote}" "${git_src_branch}"
     fi
-    git push -u "${remote}" "${src_branch}"
-    ghpr -t "${pr_title}" -d "${pr_desc}" -b "${dst_branch}" -c \
+    git push -u "${remote}" "${git_src_branch}"
+    git branch "--set-upstream-to=origin/${git_src_branch}" "${git_src_branch}"
+    (gh pr create --title "${pr_title}" --body "${pr_desc}" --base "${dst_branch}" \
+        | pbcopy && pbpaste && rm "${commit_desc_file}") \
         || (printf "failed to create PR - file saved here: %s\n" "${commit_desc_file}" && false)
 }
 
