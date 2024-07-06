@@ -2,13 +2,18 @@
 # -*- coding: utf-8 -*-
 
 """
-dirdiff [OPTIONS...] dir1 dir2
+dirdiff [OPTIONS...] dir1 dir2 [dir3...]
 modified files:
 1 column
 moved/renamed files:
 2 columns
 additional files:
 1 column
+
+
+dirdiff [OPTIONS] --persist-lookup-tables dir1 [dir2...]
+... transfer resulting `dir1.dirdiff` file to another host ...
+dirdiff [OPTIONS] dir1 dir1.dirdiff [dir2...]
 """
 
 import argparse
@@ -189,6 +194,10 @@ def preprocess_into_datastructs(
                 except PermissionError as e:
                     LOG.warning(f"error processing {f}: {e}")
         elif stat.S_ISREG(statdata.st_mode):
+            # we're using a dump created by a previous invocation of this script
+            # with --persist_lookup_tables flag
+            realtime = False
+
             savedstate_hashdiff_data: Dict[HexDigest, Dict[Path, List[DirDiffFile]]]
             savedstate_pathdiff_data: Dict[Path, List[DirDiffFile]]
             (
@@ -197,11 +206,6 @@ def preprocess_into_datastructs(
                 savedstate_hashdiff_data,
                 savedstate_pathdiff_data,
             ) = load_state(rootdir)
-            realtime = (
-                realtime
-                and savedstate_hostname == HOSTNAME
-                and savedstate_ts == TIMESTAMP
-            )
 
             for hd, data in savedstate_hashdiff_data.items():
                 for path, dirdiff_filelist in data.items():
