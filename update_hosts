@@ -3,6 +3,15 @@
 # download host lists and apply them to /etc/hosts
 # this should be sufficient to kill ads in both spotify and google play
 
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+set -e -u
+set -o pipefail
+
 function enable()
 {
     case $(uname) in
@@ -72,6 +81,7 @@ function enable()
 127.0.0.1    heads-ec.spotify.com
 EOM
         sudo tee -a /etc/hosts.orig > /dev/null <<< "${textstr}"
+        sudo chmod go+r /etc/hosts
     fi
     # whitelist exactly the hostname pattern here. "^mixpanel.com$" will
     # whitelist traffic to mixpanel.com, but lines such as
@@ -143,8 +153,7 @@ EOM
 
 function main()
 {
-    local action="${1##--}"
-    test -z "$action" && action=enable
+    local action
 
     while getopts "h-:" opt; do
         case ${opt} in
@@ -178,6 +187,12 @@ function main()
     done
     shift $((OPTIND - 1))
     [[ ${1-} == '--' ]] && shift
+
+    if [ $# -ge 1 ]; then
+        action="${1##--}"
+    else
+        action=enable
+    fi
 
     case "${action}" in
         enable)
