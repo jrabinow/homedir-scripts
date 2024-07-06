@@ -24,8 +24,7 @@ function get_github_token()
 {
     git config --get-all credential.helper \
         | awk '/store --file/ {print $NF}' \
-        | xargs -I% sh -c "cat %" \
-        | grep -oP '(?<=:)[a-zA-Z0-9_]*(?=@)'
+        | xargs -I% sh -c "cat %"
 }
 
 # python requests version: https://stackoverflow.com/a/63720399
@@ -44,10 +43,13 @@ function github_authheader()
 function run_git_cmd()
 {
     gitargs="${*}"
-    printf "=========== UPDATING REPO %s ===========\n" "${subdir}"
-    # we intentionally do not quote below to allow word splitting
+    # we intentionally do not quote the gitargs variable below to allow word
+    # splitting
     # shellcheck disable=SC2086
-    git ${gitargs}
+    out=$(printf "=========== UPDATING REPO %s ===========\n" "${subdir}" \
+        && printf "%s: " "${subdir}" \
+        && git ${gitargs} 2>&1)
+    stdbuf -o20K -e20K echo "${out}"
 }
 
 function update_existing_repos()
@@ -65,11 +67,11 @@ function update_existing_repos()
         cd "${subdir}"
         local repostatus
         if "${force_dirty}"; then
-            run_git_cmd "${gitargs}"
+            run_git_cmd "${gitargs}" &
         else
             repostatus=$(git status --short | grep -v '^??' || true)
             if [ -z "${repostatus}" ]; then
-                run_git_cmd "${gitargs}"
+                run_git_cmd "${gitargs}" &
             else
                 printf "\033[31m=========== DIRTY REPO %s ==========\033[0m\n" "${subdir}"
             fi
@@ -81,7 +83,6 @@ function update_existing_repos()
 function clone_any_missing_repos()
 {
     local ORGNAME="${1}"
-    local org_url
     local org_repos_url
     local repos_out
     local response_len
@@ -91,8 +92,7 @@ function clone_any_missing_repos()
 
     readonly ORGNAME
 
-    org_url="https://api.github.com/orgs/${ORGNAME}"
-    org_repos_url="$(curl -s "${org_url}" | jq -r '.repos_url')?type=all&per_page=100"
+    local org_repos_url="https://api.github.com/orgs/${ORGNAME}/repos?type=all&per_page=100"
 
     ((page = 1))
     local token
@@ -143,6 +143,9 @@ function main()
 Usage: $(basename "${0}") [OPTION]...
 Options: -f: update dirty repos
          -h: show this help dialog
+         -t ARG: specify team name
+         -C ARG: specify rootdir
+         -- ARG1 [ARG2 ...]: arguments run by git instead of "git pull"
 EOF
                 exit 0
                 ;;
@@ -170,7 +173,18 @@ EOF
     fi
 
     if [ "${ROOTDIR}" == "." ]; then
-        ROOTDIR="$(pwd)"
+        dirpath=.
+        while
+            [ "${dirpath}" != "/" ] \
+                && [ ! -f "${dirpath}/.gitreposteam" ] \
+                && [ ! -f "${dirpath}/.gitreposignore" ]
+        do
+            dirpath="$(realpath "${dirpath}/..")"
+        done
+        if [[ "${dirpath}" == / || "${dirpath}" == "." ]]; then
+            dirpath="$(pwd)"
+        fi
+        ROOTDIR="${dirpath}"
     fi
 
     cd "${ROOTDIR}"
@@ -194,6 +208,10 @@ EOF
         clone_any_missing_repos "${TEAM_NAME}"
     fi
     update_existing_repos "${ROOTDIR}" "${FORCE_DIRTY}" "${GITARGS}"
+
+    # jobs -p returns list of children as pids, one per line. Don't quote
+    # shellcheck disable=SC2046
+    wait $(jobs -p)
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
