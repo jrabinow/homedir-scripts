@@ -5,6 +5,16 @@ set -o pipefail
 
 # From https://www.facebook.com/groups/hack.of.the.day/permalink/1373649706016974/
 
+function max_tz_len()
+{
+    max=0
+    for tz in "${tzs[@]}"; do
+        cur=${#tz}
+        ((cur > max)) && max=$cur
+    done
+    echo "$max"
+}
+
 function main()
 {
     if [ $# -ge 1 ]; then
@@ -15,23 +25,15 @@ function main()
 
     tzs=(
         Current
+        America/Los_Angeles
+        America/Chicago
         America/New_York
-        Europe/London
         Europe/Paris
         Europe/Warsaw
-        Asia/Tel_Aviv
         Asia/Kolkata
+        Asia/Tel_Aviv
+        UTC
     )
-
-    max_tz_len()
-    {
-        max=0
-        for tz in "${tzs[@]}"; do
-            cur=${#tz}
-            ((cur > max)) && max=$cur
-        done
-        echo "$max"
-    }
 
     len=$(max_tz_len)
     for tz in "${tzs[@]}"; do
@@ -39,13 +41,13 @@ function main()
 
         if [[ $tz == Current ]]; then
             if [ -n "${dateparam}" ]; then
-                date "+%a %Y-%m-%d %T %z" ${dateparam}
+                date "+%a %Y-%m-%d %T %z" "${dateparam}"
             else
                 date "+%a %Y-%m-%d %T %z"
             fi
         else
             if [ -n "${dateparam}" ]; then
-                TZ="${tz}" date "+%a %Y-%m-%d %T %z" ${dateparam}
+                TZ="${tz}" date "+%a %Y-%m-%d %T %z" "${dateparam}"
             else
                 TZ="$tz" date "+%a %Y-%m-%d %T %z"
             fi
