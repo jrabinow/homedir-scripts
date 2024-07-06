@@ -3,6 +3,8 @@
 
 """
 Write_description_and_usage_example_here
+TODO: https://gist.github.com/gsong/7164324
+https://github.com/briankendall/check-time-machine
 """
 
 import argparse
@@ -35,7 +37,7 @@ def parse_args():
         help="specify time machine backup db dir",
     )
     parser.add_argument(
-        "--device", default="macbook", help="device name in time machine backup dir"
+        "--device", default="", help="device name in time machine backup dir"
     )
     parser.add_argument(
         "--always-symlink",
