@@ -204,9 +204,9 @@ EOF
     readonly TEAM_NAME
     readonly IGNORE_REPOS
 
-    if [ "${GITARGS}" == "pull" ]; then
-        clone_any_missing_repos "${TEAM_NAME}"
-    fi
+    #if [ "${GITARGS}" == "pull" ]; then
+    #    clone_any_missing_repos "${TEAM_NAME}"
+    #fi
     update_existing_repos "${ROOTDIR}" "${FORCE_DIRTY}" "${GITARGS}"
 
     # jobs -p returns list of children as pids, one per line. Don't quote
