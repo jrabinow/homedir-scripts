@@ -3,7 +3,7 @@
 # updates all git repos in directory
 
 if [ -n "${DEBUG}" ]; then
-    exec 5> /tmp/bash_debug_output.txt
+    exec 5>/tmp/bash_debug_output.txt
     BASH_XTRACEFD="5"
     PS4='$LINENO: '
     set -x -T
@@ -22,9 +22,9 @@ function elem_in()
 # https://github.com/jrabinow/dotfiles/blob/6e821e959b5261f2db43cde1b10d40c689f5e33e/.config/git/config#L28
 function get_github_token()
 {
-    git config --get-all credential.helper \
-        | awk '/store --file/ {print $NF}' \
-        | xargs -I% sh -c "cat %"
+    git config --get-all credential.helper |
+        awk '/store --file/ {print $NF}' |
+        xargs -I% sh -c "cat %"
 }
 
 # python requests version: https://stackoverflow.com/a/63720399
@@ -46,9 +46,9 @@ function run_git_cmd()
     # we intentionally do not quote the gitargs variable below to allow word
     # splitting
     # shellcheck disable=SC2086
-    out=$(printf "=========== UPDATING REPO %s ===========\n" "${subdir}" \
-        && printf "%s: " "${subdir}" \
-        && git ${gitargs} 2>&1)
+    out=$(printf "=========== UPDATING REPO %s ===========\n" "${subdir}" &&
+        printf "%s: " "${subdir}" &&
+        git ${gitargs} 2>&1)
     stdbuf -o20K -e20K echo "${out}"
 }
 
@@ -103,7 +103,7 @@ function clone_any_missing_repos()
 
     while :; do
         repos_out="$(curl -s -H "${authheader}" "${org_repos_url}&page=${page}")"
-        repo_names="$(jq -r '.[].clone_url' <<< "${repos_out}")"
+        repo_names="$(jq -r '.[].clone_url' <<<"${repos_out}")"
 
         for repo in ${repo_names}; do
             dirname="$(basename "${repo}" .git)"
@@ -114,7 +114,7 @@ function clone_any_missing_repos()
         done
 
         ((page += 1))
-        response_len=$(jq '.|length' <<< "${repos_out}")
+        response_len=$(jq '.|length' <<<"${repos_out}")
         [ "${response_len}" -ge 1 ] || break
     done
 }
@@ -130,16 +130,16 @@ function main()
 
     while getopts "Cfht-" opt; do
         case ${opt} in
-            C)
-                ROOTDIR="${!OPTIND}"
-                OPTIND=$((OPTIND + 1))
-                ;;
-            f) # force operation on dirty repos
-                FORCE_DIRTY=true
-                shift
-                ;;
-            h) # help message
-                cat << EOF
+        C)
+            ROOTDIR="${!OPTIND}"
+            OPTIND=$((OPTIND + 1))
+            ;;
+        f) # force operation on dirty repos
+            FORCE_DIRTY=true
+            shift
+            ;;
+        h) # help message
+            cat <<EOF
 Usage: $(basename "${0}") [OPTION]...
 Options: -f: update dirty repos
          -h: show this help dialog
@@ -147,21 +147,21 @@ Options: -f: update dirty repos
          -C ARG: specify rootdir
          -- ARG1 [ARG2 ...]: arguments run by git instead of "git pull"
 EOF
-                exit 0
-                ;;
-            t)
-                TEAM_NAME="${!OPTIND}"
-                OPTIND=$((OPTIND + 2))
-                team_name_isset=true
-                ;;
-            -)
-                GITARGS="${*}"
-                shift $#
-                ;;
-            ?)
-                printf "Unknown option, exiting now\n" >&2
-                exit 1
-                ;;
+            exit 0
+            ;;
+        t)
+            TEAM_NAME="${!OPTIND}"
+            OPTIND=$((OPTIND + 2))
+            team_name_isset=true
+            ;;
+        -)
+            GITARGS="${*}"
+            shift $#
+            ;;
+        ?)
+            printf "Unknown option, exiting now\n" >&2
+            exit 1
+            ;;
         esac
     done
 
@@ -175,9 +175,9 @@ EOF
     if [ "${ROOTDIR}" == "." ]; then
         dirpath=.
         while
-            [ "${dirpath}" != "/" ] \
-                && [ ! -f "${dirpath}/.gitreposteam" ] \
-                && [ ! -f "${dirpath}/.gitreposignore" ]
+            [ "${dirpath}" != "/" ] &&
+                [ ! -f "${dirpath}/.gitreposteam" ] &&
+                [ ! -f "${dirpath}/.gitreposignore" ]
         do
             dirpath="$(realpath "${dirpath}/..")"
         done
@@ -190,7 +190,7 @@ EOF
     cd "${ROOTDIR}"
 
     if [ -f .gitreposignore ]; then
-        mapfile -t IGNORE_REPOS < .gitreposignore
+        mapfile -t IGNORE_REPOS <.gitreposignore
     else
         IGNORE_REPOS=()
     fi
