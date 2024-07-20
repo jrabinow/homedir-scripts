@@ -67,12 +67,22 @@ function is_audio_adblocker_running()
 
 function spotify_launchnplay()
 {
-    osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true' \
-        -e 'tell application "Spotify" to launch' \
-        -e 'delay 0.5' \
-        -e 'tell application foregroundApp to activate' \
-        -e 'delay 2' \
-        -e 'tell application "spotify" to play'
+    retry_count=3
+    while [ "${retry_count}" -gt 0 ]; do
+        # 196:204: execution error: Can’t get application "MSTeams". (-1728)
+        # ps: Invalid process id: osascript failure
+        #
+        # # fuck MS teams
+        #
+        # shellcheck disable=SC2015
+        osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true and name is not "MSTeams"' \
+            -e 'tell application "Spotify" to launch' \
+            -e 'delay 0.5' \
+            -e 'tell application foregroundApp to activate' \
+            -e 'delay 2' \
+            -e 'tell application "spotify" to play' && break || bell -m 'osascript failure'
+        retry_count=$((retry_count - 1))
+    done
 }
 
 function main()
