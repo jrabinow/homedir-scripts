@@ -25,7 +25,7 @@ function normalize_file_contents()
 {
     FILE="${1}"
     shift
-    sed -E "s/\t/    /g;s/'([\\w0-9\\.-]+)'(\\s+#[^#]*)?$/\\1\\2/" "${FILE}"
+    sed -E "1{/^$/d};s/\t/    /g;s/'([\\w0-9\\.-]+)'(\\s+#[^#]*)?$/\\1\\2/;s/^config (core|internal|extern) (\w+)$/config \1 '\2'/g;s/\"(\S+)\"$/'\1'/;s/(option|list) (\S+) ([^\S']+)$/\1 \2 '\3'/" "${FILE}"
 }
 
 function main()
