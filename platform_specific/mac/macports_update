@@ -127,6 +127,27 @@ function postinstall_tasks()
         | xargs sudo sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
 }
 
+function port_select_review()
+{
+    port select --summary |
+        tail -n +3 |
+        awk '{
+            for (col=3; col <= NF; col++) {
+                if ($col != "none") {
+                    arr[$col]=true
+                }
+            }
+            if ($2 in arr == 0) {
+                printf "%s -> %s\toptions: ", $1, $2
+                for (select in arr) {
+                    printf "%s ", select
+                }; printf "\n"
+            }
+            delete arr
+        }' |
+        column -t
+}
+
 function main()
 {
     run_port_selfupdate=true
@@ -167,6 +188,7 @@ function main()
     port reclaim -N || true
     port_cutleaves
     postinstall_tasks
+    port_select_review
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
