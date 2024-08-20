@@ -12,8 +12,8 @@ additional files:
 
 
 dirdiff [OPTIONS] --persist-lookup-tables dir1 [dir2...]
-... transfer resulting `dir1.dirdiff` file to another host ...
-dirdiff [OPTIONS] dir1 dir1.dirdiff [dir2...]
+... transfer resulting `dir1.dirstate` file to another host ...
+dirdiff [OPTIONS] dir3 dir1.dirstate [dir4...]
 """
 
 import argparse
@@ -31,7 +31,7 @@ from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Annotated
 
 LOG = logging.getLogger()
 LOG.setLevel("INFO")
@@ -66,10 +66,18 @@ class DirDiffFile:
             return f"{dt} - {self.machine}::{self.rootdir}/{self.position}"
 
 
-HexDigest = str
-HashDiffLookup = Dict[HexDigest, Dict[Path, List[DirDiffFile]]]
-PathDiffLookup = Dict[Path, List[DirDiffFile]]
-MatchResults = Dict[HexDigest, List[DirDiffFile]]
+# this "Annotated" stuff allows us to document individual variables,
+# see https://stackoverflow.com/a/8820636
+HexDigest = Annotated[str, "file content hash type"]
+MatchResults = Annotated[
+    Dict[HexDigest, List[DirDiffFile]], "type for file lookup by content hash"
+]
+PathDiffLookup = Annotated[
+    Dict[Path, List[DirDiffFile]], "type for file lookup by path"
+]
+HashDiffLookup = Annotated[
+    Dict[HexDigest, PathDiffLookup], "type for file lookup by content hash, then path"
+]
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -141,15 +149,7 @@ def chdir(dirname):
         os.chdir(oldpwd)
 
 
-def apply_to_dir(dirpath, func):
-    return [
-        dirpath / func(filepath)
-        for filepath in Path(dirpath).rglob("*")
-        if not filepath.is_dir()
-    ]
-
-
-def file_hexdigest(filepath) -> str:
+def file_hexdigest(filepath: Path) -> str:
     hasher = hashlib.sha1()
     BUFSIZ = 65536
     try:
@@ -161,7 +161,7 @@ def file_hexdigest(filepath) -> str:
     except FileNotFoundError as e:
         # if this is a symlink
         if stat.S_ISLNK(os.lstat(filepath).st_mode):
-            hasher.update(b"")
+            hasher.update(os.readlink(filepath).encode())
         else:
             raise
     except OSError as e:
@@ -172,20 +172,43 @@ def file_hexdigest(filepath) -> str:
     return hasher.hexdigest()
 
 
+def list_files_recursively(dirpath: Path) -> List[Path]:
+    return [
+        dirpath / filepath for filepath in dirpath.rglob("*") if not filepath.is_dir()
+    ]
+
+
 def preprocess_into_datastructs(
     rootdirs: List[Path],
 ) -> Tuple[HashDiffLookup, PathDiffLookup, bool]:
-    # let's collect all the files from all the rootdirs and build our base data structures
+    """
+    collect all the files from all the rootdirs and build our base data
+    structures. We want to be able to look files up:
+     - by content hash
+     - by relative path
+
+    rootdirs: list of rootdirs to analyze. A rootdir can either be a directory
+              or a dirdiff state file created during a previous invocation
+    return
+        - a dict for looking up by hash
+        - a dict for looking up by path
+        - whether the directory was analyzed in real time or whether at least
+          one of the rootdirs was loaded from a state file
+    """
     hashdiff_data: HashDiffLookup = defaultdict(lambda: defaultdict(list))
     pathdiff_data: PathDiffLookup = defaultdict(list)
     realtime: bool = True
 
     for rootdir in rootdirs:
         statdata = os.stat(rootdir)
+        # if it's a directory, analyze it
         if stat.S_ISDIR(statdata.st_mode):
             rootdir_path = Path(rootdir)
+            # we want paths relative to rootdir, not absolute paths. Abstract
+            # away the absolute paths by changing directory to rootdir before
+            # listing files
             with chdir(rootdir_path):
-                filelist = apply_to_dir(".", lambda x: x)
+                filelist = list_files_recursively(Path("."))
             for f in filelist:
                 try:
                     ddf = DirDiffFile(rootdir_path, f)
@@ -193,6 +216,7 @@ def preprocess_into_datastructs(
                     pathdiff_data[ddf.position].append(ddf)
                 except PermissionError as e:
                     LOG.warning(f"error processing {f}: {e}")
+        # if it's a state file, load it
         elif stat.S_ISREG(statdata.st_mode):
             # we're using a dump created by a previous invocation of this script
             # with --persist_lookup_tables flag
@@ -223,6 +247,15 @@ def preprocess_into_datastructs(
 def save_state(
     dirpaths: List[str], hashdiff_data: HashDiffLookup, pathdiff_data: PathDiffLookup
 ) -> None:
+    """
+    After analyzing a directory, save the rootdir state to a file specified by
+    the user, for later comparison against another rootdir. This comparison can
+    potentially happen on a different computer, or against the same directory
+    but after some time has passed.
+
+    todo replace dirpath with output filepath and save dirpaths as part of the
+    data
+    """
     savestate_filename: str = "{}.dirdiff".format(
         "_".join([os.path.basename(d) for d in dirpaths])
     )
@@ -234,6 +267,19 @@ def save_state(
 def load_state(
     dirdiff_state_path: Path,
 ) -> Tuple[str, int, HashDiffLookup, PathDiffLookup]:
+    """
+    load a previous rootdir save state, so that it can be compared with a
+    different rootdir
+
+    dirdiff_state_path: path to a save state file (pickle format) previously
+                        generated by dirdiff
+
+    return
+        - hostname on which save state was created
+        - timestamp at which it was created
+        - hashdifflookup for looking up files by hash and path
+        - pathdifflookup for looking up files by path
+    """
     try:
         with open(dirdiff_state_path, "rb") as f:
             (
@@ -252,6 +298,24 @@ def load_state(
 def partition_matched_unmatched(
     hashdiff_data: HashDiffLookup, rootdirs: List[Path]
 ) -> Tuple[MatchResults, MatchResults]:
+    """
+    After building an in-memory representation of each rootdir, attempt to match
+    as many files as possible. Any file that has same filepath and hash that
+    exists in all rootdirs is considered matched. Any other file is considered
+    unmatched.
+
+    hashdiff_data: lookup files by hash, dict-type. Key is file hash, value is
+                   itself a dict, where each key is a relative path (relative to
+                   rootdirs) and each value is a list of files. This list of
+                   files should all match both hash and relative path
+    rootdirs: list of rootdirs being examined
+
+    return 2 MatchResult objects (file lookup by content hash
+           -> dict[hash, list of files]). 1st one is matched files, second one
+           is unmatched files
+    """
+    # key is the file hexdigest, value is list of dirdiffobjects, each
+    # representing a file with that hash
     matched: MatchResults = defaultdict(list)
     unmatched: MatchResults = defaultdict(list)
 
@@ -259,10 +323,19 @@ def partition_matched_unmatched(
     #    - "foopath1" == "foopath2" and "barfile1" == "barfile2"
     #    - hash(barfile1) == hash(barfile2).
     # Otherwise, barfile1 is unmatched.
+    # For 3+ rootdirs, all filepaths and hashes have to match, and the file must
+    # be present in all rootdirs
     len_rootdirs = len(rootdirs)
     for hexdigest, filedata in hashdiff_data.items():
         for _, filelist in filedata.items():
+            # if all rootdirs have the same DirdiffFile -> we have a match
             if len(filelist) == len_rootdirs:
+                # make sure no bugs in input data: each DirDiffFile has to have:
+                # - one file per time/machine/rootdir combo
+                # - same hash
+                # - same relative path within each separate rootdir
+                # For this check, create sets and ensure each set has the
+                # expected length
                 assert (
                     len({(f.time, f.machine, f.rootdir) for f in filelist})
                     == len_rootdirs
@@ -270,6 +343,7 @@ def partition_matched_unmatched(
                     and len({f.position for f in filelist}) == 1
                 ), ("matching error: %s" % filelist)
                 matched[hexdigest].extend(filelist)
+            # else we don't have a match
             else:
                 for f in filelist:
                     unmatched[f.hexdigest].append(f)
@@ -282,6 +356,16 @@ def partition_unmatched_by_type(
     pathdiff_data: PathDiffLookup,
     rootdirs: List[Path],
 ) -> Tuple[PathDiffLookup, List[List[DirDiffFile]], List[DirDiffFile]]:
+    """
+    Categorize each file into one of modified, moved/renamed, or additional
+
+    unmatched: unmatched files as a dict. key is file hash, value is list of
+               files with that hash
+    pathdiff_data: file lookup by path. Dict where key is path relative to
+                   rootdir, value is list of files with that relative path (each
+                   rootdir might have its own file)
+    rootdirs: list of directories we're comparing against one another
+    """
     # We distinguish 3 cases for unmatched files:
     #  - modified file
     #  - moved/renamed file
@@ -290,9 +374,15 @@ def partition_unmatched_by_type(
     # dir1/foopath1/barfile1 was modified if:
     #  - dir2/foopath2/barfile2 with foopath1 == foopath2 exists
     #  - hash(barfile1) != hash(barfile2)
+    # For these files, the invariant is the file path -> dict of paths that each
+    # map to DirdiffFile list.
+    #
     # dir1/foopath1/barfile1 was moved/renamed if:
-    #  - there exists dir2/foopath2/barfile2 such that foopath1 != foopath2 and hash(barfile1) == hash(barfile2)
+    #  - there exists dir2/foopath2/barfile2 such that foopath1 != foopath2 and
+    #    hash(barfile1) == hash(barfile2)
     #  - neither barfile1 nor barfile2 are modified as per the definition above
+    # We will want to
+    #
     # dir1/foopath1/barfile1 is additional if:
     #  - barfile1 is not modified as per the definition above
     #  - barfile1 is not moved/renamed as per the definition above
@@ -310,7 +400,8 @@ def partition_unmatched_by_type(
             else:
                 unmodified.append(f)
         # any unmodified file is either moved/renamed, or isn't in all rootdirs
-        # all these files have the same hexdigest, and don't necessarily have the same path
+        # all these files have the same hexdigest, and don't necessarily have
+        # the same path
         if len(unmodified) > 0:
             # if there's one file per repo, then at least one file was moved
             if len({f.rootdir for f in unmodified}) == len_rootdirs:
