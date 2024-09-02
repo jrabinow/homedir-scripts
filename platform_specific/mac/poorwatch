@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+# leverage https://objective-see.org/products/utilities.html#FileMonitor to search for events
+
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+set -e -u
+set -o pipefail
+
+function usage()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]...
+
+Options:
+    -h, --help: show this help dialog
+EOF
+}
+
+function monitor_paths()
+{
+    declare -a notify_paths=("$@")
+    pathregex=""
+    for p in "${notify_paths[@]}"; do
+        pathregex="${pathregex}|${p}"
+    done
+    pathregex="$(sed -E 's/^\|//' <<< "${pathregex}")"
+    sudo file-monitor | grep -E "${pathregex}"
+}
+
+function main()
+{
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h) # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
+    if [ $# -eq 0 ]; then
+        paths=(".")
+    else
+        paths=("${@}")
+    fi
+
+    printf "Streaming events for files under the following directories: %s\n" "${paths[@]}"
+
+    monitor_paths "${paths[@]}"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
