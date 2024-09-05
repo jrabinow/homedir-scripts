@@ -88,9 +88,10 @@ EOF
             local jira_ticket_title
             jira_ticket_title="$(jq -r '.fields.summary' <<<"${ticket_info}")"
             pr_title="${ticket_id}: ${title:-${jira_ticket_title:-$(git log -n1 --pretty=format:%s)}}"
+            # last sed is to convert from jira format links to github markdown
             ticket_summary="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" \
                 | dos2unix \
-                | sed -E 's/\[([^\|]+)\|([^\|]+)\|smart-link\]/[\1](\2)/g')"
+                | sed -E 's/\[([^\|]+)\|([^\|]+)(\|smart-link)?\]/[\1](\2)/g')"
             if [[ "${ticket_summary}" == 'null' ]]; then
                 ticket_summary="${pr_title}"
             fi
