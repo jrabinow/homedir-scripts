@@ -85,18 +85,24 @@ EOF
             ticket_info=$(curl -s -u "${jira_user}:${jira_api_token}" \
                 -H 'Content-Type: application/json' \
                 "${jira_domain}/rest/api/latest/issue/${ticket_id}")
-            pr_title="${ticket_id}: ${title:-$(git log -n1 --pretty=format:%B)}"
-            ticket_description="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" \
+            local jira_ticket_title
+            jira_ticket_title="$(jq -r '.fields.summary' <<<"${ticket_info}")"
+            pr_title="${ticket_id}: ${title:-${jira_ticket_title:-$(git log -n1 --pretty=format:%s)}}"
+            ticket_summary="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" \
                 | dos2unix \
                 | sed -E 's/\[([^\|]+)\|([^\|]+)\|smart-link\]/[\1](\2)/g')"
-            if [[ "${ticket_description}" == 'null' ]]; then
-                ticket_description=""
+            if [[ "${ticket_summary}" == 'null' ]]; then
+                ticket_summary="${pr_title}"
             fi
-            description="${jira_domain}/browse/${ticket_id}"$'\n'$"${ticket_description/null/}"
+            pr_summary="${jira_domain}/browse/${ticket_id}"$'\n'$"${ticket_summary/null/}"
         else
             printf "no ticket info\n"
-            pr_title=${title:-$(git log -n1 --pretty=format:%B)}
-            description=""
+            pr_title="${title:-$(git log -n1 --pretty=format:%s)}"
+            pr_summary="${pr_title}"
+        fi
+        pr_description="$(git changelog | tac | awk '{sub($1, ""); print $0}' | sed 's/^/-/')"
+        if [[ "$(wc -l <<<"${pr_description}")" -eq 1 ]]; then
+            pr_description="$(git log -n1 --pretty=format:%b)"
         fi
     fi
 
@@ -111,10 +117,10 @@ Title: ${pr_title}
 Branch: ${dst_branch}
 
 ## Summary
-${pr_title}
+${pr_summary}
 
 ## Description
-${description}
+${pr_description}
 
 ## Test plan
 testinprod
