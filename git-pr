@@ -9,13 +9,7 @@ fi
 set -e -u
 set -o pipefail
 
-# needs - jq, dos2unix (both available in macports or homebrew)
-#       - gh from https://cli.github.com/ or https://ports.macports.org/port/gh/
-#
-# place this script in your PATH, for example ~/bin
-# chmod +x ~/bin/git-pr
-# replace jira_user variable below with your own jira account email
-# replace jira_api_token below with your own api token https://id.atlassian.com/manage/api-tokens
+# Create PR and auto-link to jira ticket if one is provided
 #
 # Usage:
 # $ git pr [OPTION]... [TICKET_NUM]
@@ -23,6 +17,20 @@ set -o pipefail
 #          -t ARG: use title ARG for PR
 #          -h: show this help dialog
 
+# call as
+# git pr JIRA-123
+#
+# needs - jq, dos2unix (both available in macports or homebrew)
+#       - gh from https://cli.github.com/ or https://ports.macports.org/port/gh/
+#       - GNU sed
+#
+# place this script in your PATH, for example ~/bin
+# chmod +x ~/bin/git-pr
+# replace jira_user variable below with your own jira account email or define
+# in an appropriately sourced file as below
+# replace jira_api_token below with your own api token
+# https://id.atlassian.com/manage/api-tokens
+#
 # shellcheck disable=SC1090
 source ~/.local/share/bash/perscreds
 # shellcheck disable=SC1090
