@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+
+# write some cool doc here
+
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+set -e -u
+set -o pipefail
+
+function usage()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]...
+Options: --help, -h: show this help dialog
+EOF
+}
+
+
+function stack_push()
+{
+    local -n stack_ref="${1}"
+    shift
+    e="${1}"
+    shift
+
+    stack_ref+=("${e}")
+}
+
+# Of interest:
+# - https://stackoverflow.com/a/8247497
+# - https://stackoverflow.com/a/52028053
+#
+# Trying to echo from inside this function and capture it via
+# `el=$(stack_pop array)`
+# in the caller, or even doing
+# `stack_pop array | cat`
+# results in the function being executed in a separate subshell. This means that
+# the
+# `unset stack_ref[-1]`
+# has no visibility outside of the subshell and therefore the function
+#
+# To work around the subshell issue, we use named parameters to capture the
+# popped value
+function stack_pop()
+{
+    # this is assigned as string and used as array because it's a named
+    # reference to the array passed as parameter
+    # shellcheck disable=2178
+    local -n stack_ref="${1}"; shift
+    local -n popped_ref="${1}"; shift
+
+    if [[ "${#stack_ref[@]}" -gt 0 ]]; then
+        # this variable appears unused in this function but is actually a named
+        # reference to the second parameter of this function
+        # shellcheck disable=SC2034
+        popped_ref="${stack_ref[-1]}"
+        unset "stack_ref[-1]"
+    else
+        popped_ref=""
+    fi
+}
+
+function git_default_branch()
+{
+    cut -d/ -f4- < "$(git rev-parse --show-toplevel)/.git/refs/remotes/origin/HEAD"
+}
+
+# https://github.com/jrabinow/dotfiles/blob/91afeb7879b48f35dddd7da6d74165ade0283e2f/.config/git/config#L132
+function git_parent_branch()
+{
+    (git show-branch -a 2> /dev/null || true) \
+        | (grep -F '*' || true) \
+        | (grep -vE "\[$(git rev-parse --abbrev-ref HEAD)(\^|(~[0-9]+)?)?\]" || true) \
+        | head -1 \
+        | sed 's/.*\[\(.*\)\].*/\1/;s/[\^~].*//'
+}
+
+function main()
+{
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h) # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    printf 'Unknown option, exiting now\n' >&2
+                    exit 1
+                    ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
+    arg=""
+    if [ $# -gt 0 ]; then
+        arg="${1}"
+    fi
+
+    # this variable appears unused in this function but is actually referenced
+    # by the `stack_push` and `stack_pop` functions
+    # shellcheck disable=SC2034
+    declare -a branch_stack=()
+
+    default_branch="$(git_default_branch)"
+    parent_branch="$(git_parent_branch)"
+
+    stack_push branch_stack "$(git branch --show-current)"
+
+    while [[ "${parent_branch}" != "${default_branch}" && "${parent_branch}" != "CONCURRENTLY" ]]; do
+        stack_push branch_stack "${parent_branch}"
+        git checkout "${parent_branch}" > /dev/null
+        parent_branch="$(git_parent_branch)"
+    done
+
+    local br
+    stack_pop branch_stack br
+
+    parent_branch="${default_branch}"
+    while [[ "${br}" != "" ]]; do
+        git checkout "${br}"
+        git rebase "${parent_branch}"
+        if [ "${arg}" == "push" ]; then
+            git push -f
+        fi
+        parent_branch="${br}"
+        stack_pop branch_stack br
+    done
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    main "$@"
+fi
