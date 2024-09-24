@@ -195,7 +195,11 @@ EOF
         IGNORE_REPOS=()
     fi
     if ! "${team_name_isset}"; then
-        TEAM_NAME="$(cat .gitreposteam)"
+        if [ -f .gitreposteam ]; then
+            TEAM_NAME="$(cat .gitreposteam)"
+        else
+            TEAM_NAME="UNKNOWN"
+        fi
     fi
 
     readonly FORCE_DIRTY
