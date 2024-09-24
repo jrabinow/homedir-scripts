@@ -119,6 +119,10 @@ function macports_localchanges()
 
 function postinstall_tasks()
 {
+    # the default gitconfig shipped with macports overrides my credential helper
+    # git checks in /opt/local/etc/gitconfig, ~/.gitconfig and
+    # ~/.config/git/config by default, but if /opt/local/etc/gitconfig exists,
+    # it doesn't read ~/.config/git/config. Let's remove it
     sudo rm -f /opt/local/etc/gitconfig
 
     # shellcheck disable=SC2016
@@ -129,6 +133,10 @@ function postinstall_tasks()
 
 function port_select_review()
 {
+    # go through each line. Each option ($3+) is added to an array in the first
+    # loop
+    # In the second loop, check if the selected option ($2) is one of the valid
+    # options => in the array
     port select --summary |
         tail -n +3 |
         awk '{
