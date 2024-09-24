@@ -155,6 +155,7 @@ function main()
 {
     local action
 
+    action=enable
     while getopts "h-:" opt; do
         case ${opt} in
             h) # help message
@@ -187,12 +188,6 @@ function main()
     done
     shift $((OPTIND - 1))
     [[ ${1-} == '--' ]] && shift
-
-    if [ $# -ge 1 ]; then
-        action="${1##--}"
-    else
-        action=enable
-    fi
 
     case "${action}" in
         enable)
