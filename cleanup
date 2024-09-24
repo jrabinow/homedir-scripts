@@ -87,6 +87,7 @@ function main()
         .config/viewnior
         .config/xarchiver
         .config/yelp
+        .continue/
         .cinnamon
         .cups
         .dbus
@@ -223,6 +224,7 @@ function main()
         .AndroidStudio2.0/config/options/statistics.application.usages.xml
         .AndroidStudio2.0/config/options/usage.statistics.xml
         .ICEauthority
+        .KUsrTsk-502.pid
         .aspell*
         .babel.json
         .config/QtProject.conf
@@ -456,7 +458,7 @@ function main()
     done
     for d in "${tmpfiles[@]}"; do
         # shellcheck disable=SC2086
-        rm -rf /tmp/${d} 2> /dev/null
+        rm -rf /tmp/${d} || true
     done
     LOCATE=$([[ $(uname) == Darwin ]] && echo slocate || echo locate)
     # shellcheck disable=SC2046

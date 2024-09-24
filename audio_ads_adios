@@ -80,7 +80,9 @@ function spotify_launchnplay()
             -e 'delay 0.5' \
             -e 'tell application foregroundApp to activate' \
             -e 'delay 2' \
-            -e 'tell application "spotify" to play' && break || bell -m 'osascript failure'
+            -e 'tell application "spotify" to play' \
+            && break \
+            || bell -m 'osascript failure'
         retry_count=$((retry_count - 1))
     done
 }
