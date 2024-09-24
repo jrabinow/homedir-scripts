@@ -479,7 +479,19 @@ function main()
 # firefox trash
 function firefox_cleanup()
 {
-    cd ~/.mozilla 2> /dev/null
+    case "${OSTYPE}" in
+        darwin*)
+            FIREFOX_HOMEDIR="$HOME/Library/Application Support/Firefox"
+        ;;
+        linux-gnu)
+            FIREFOX_HOMEDIR=~/.mozilla/firefox
+        ;;
+        *)
+            echo Not Found
+        ;;
+    esac;
+
+    cd "${FIREFOX_HOMEDIR}" 2> /dev/null
     rmdir extensions 2> /dev/null
     cd firefox 2> /dev/null
     for profile in *.default; do
