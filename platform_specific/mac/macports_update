@@ -7,16 +7,24 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS=""
+readonly PORTS="google-cloud-sdk qt5-qttools"
 # these ports change often and won't be fixed soon
-readonly SKIP_PORT_MD5=""
-#function handle_ghidra()
-#{
-#    portfile="${1}"
-#    shift
-#    set_param "${portfile}" java.version 17+
-#    set_param "${portfile}" github.setup 'NationalSecurityAgency ghidra 10.4 Ghidra_ _build'
-#}
+readonly SKIP_PORT_MD5="google-cloud-sdk"
+
+function handle_google-cloud-sdk()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" python.default_version 312
+    set_param "${portfile}" revision 1
+}
+
+function handle_qt5-qttools()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" llvm_version 19
+}
 
 # ==============================================================
 # ==============================================================
@@ -28,7 +36,6 @@ if [ -n "${DEBUG}" ]; then
     PS4='$LINENO: '
     set -x -T
 fi
-set -e -u -o pipefail
 
 # freezeports_hashes file format:
 # $ cat ~/.local/share/macports/freezeports_hashes
@@ -54,8 +61,8 @@ function set_param()
     shift
     value="${*}"
     shift
-    (grep -qE "^${param}(\s+)" "${portfile}" \
-        && sed -i -E "s/^${param}(\s+).*$/${param}\1${value}/g" "${portfile}") \
+    (grep -qE "^(set )?${param}(\s+)" "${portfile}" \
+        && sed -i -E "s/^(set )?${param}(\s+).*$/\1${param}\2${value}/g" "${portfile}") \
         || echo -e "\n${param}   ${value}" >> "${portfile}"
 }
 
@@ -107,7 +114,8 @@ function macports_localchanges()
             && [[ ! ".*${portname}.*" =~ ${SKIP_PORT_MD5} ]]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
-            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}" | awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
+            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}" \
+                | awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
             vim -i "${tmpfile}" -O "${FREEZEPORTS_HASHES}" "${portfile}"
             rm "${tmpfile}"
         else
@@ -137,9 +145,9 @@ function port_select_review()
     # loop
     # In the second loop, check if the selected option ($2) is one of the valid
     # options => in the array
-    port select --summary |
-        tail -n +3 |
-        awk '{
+    port select --summary \
+        | tail -n +3 \
+        | awk '{
             for (col=3; col <= NF; col++) {
                 if ($col != "none") {
                     arr[$col]=true
@@ -152,8 +160,8 @@ function port_select_review()
                 }; printf "\n"
             }
             delete arr
-        }' |
-        column -t
+        }' \
+        | column -t
 }
 
 function main()
@@ -201,4 +209,5 @@ function main()
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
     main "$@"
+    set -e -u -o pipefail
 fi
