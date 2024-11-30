@@ -7,7 +7,7 @@ function usage()
     cat >&2 << EOF
 Usage: ${0##*/} [OPTION]... FILE...
 Options: -t N: display top N commits
-	 -h: show this help dialog
+         -h: show this help dialog
 EOF
 }
 
@@ -17,8 +17,7 @@ function filestats()
     shift
 
     if [ -d "${filepath}" ]; then
-        printf 'WARNING: %s is a directory! Incorrect stats incoming!\n' "${filepath}" >&2
-        txt="$(fd -H '.*' "${filepath}" -t f --exec git blame --date=format:%G --show-email {} \;)"
+        txt="$(git ls-files "${filepath}" | xargs -rn1 git blame --date=format:%G --show-email --)"
     else
         txt="$(git blame --date=format:%G --show-email "${filepath}")"
     fi
@@ -26,14 +25,14 @@ function filestats()
     numlines="$(wc -l <<< "${txt}")"
     echo "${numlines} total lines" | sed 's/^\s+//'
     echo "----- YEARS -----"
-    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
+    grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' <<< "${txt}" \
         | sed 's/^(.*\([0-9]\{4\}\).*)$/\1/' \
         | sort \
         | uniq -c \
         | sort -r \
         | awk '{print $2 " -> " $1 " lines"}'
     echo "----- TOP AUTHORS -----"
-    echo "${txt}" | grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' \
+    grep -oE '\(<.*@[^>]*>\s+[0-9]{4}\s+[0-9]*\)' <<< "${txt}" \
         | sed 's/^(\(<.*@.*>\).*)$/\1/' \
         | sort \
         | uniq -c \
@@ -41,7 +40,7 @@ function filestats()
         | head -n"${TOP}" \
         | awk '{print $2 " -> " $1 " lines"}' | column -t
     echo "----- TOP DIFFS -----"
-    echo "${txt}" | cut -b-8 \
+    cut -b-8 <<< "${txt}" \
         | sort \
         | uniq -c \
         | sort -rn \
