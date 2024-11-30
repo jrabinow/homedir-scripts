@@ -43,7 +43,7 @@ function main()
             while [ $# != 0 ]; do
                 file="${1}"
                 shift
-                printf 'Sending file %s...\n' "${file}"
+                printf 'Sending file %s\n' "${file}"
                 $(binary) -vlp"${portnum}" < "${file}"
             done
             ;;
