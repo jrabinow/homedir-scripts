@@ -464,9 +464,7 @@ function main()
     # shellcheck disable=SC2046
     (${LOCATE} recently-used.xbel || echo) | xargs -r rm -f
 
-    if [ -d ~/.mozilla ]; then
-        firefox_cleanup
-    fi
+    firefox_cleanup
 
     # clean up all docker shit
     if [ -S /var/run/docker.sock ] && [ -n "$(which docker 2> /dev/null)" ]; then
@@ -482,26 +480,27 @@ function main()
 function firefox_cleanup()
 {
     case "${OSTYPE}" in
-        darwin*)
-            FIREFOX_HOMEDIR="$HOME/Library/Application Support/Firefox"
+    darwin*)
+        FIREFOX_HOMEDIR="$HOME/Library/Application Support/Firefox"
         ;;
-        linux-gnu)
-            FIREFOX_HOMEDIR=~/.mozilla/firefox
+    linux-gnu)
+        FIREFOX_HOMEDIR=~/.mozilla/firefox
         ;;
-        *)
-            echo Not Found
+    *)
+        echo Not Found
         ;;
-    esac;
+    esac
 
-    cd "${FIREFOX_HOMEDIR}" 2> /dev/null
-    rmdir extensions 2> /dev/null
-    cd firefox 2> /dev/null
-    for profile in *.default; do
-        cd "${profile}"
-        rm -rf startupCache Cache bookmarkbackups thumbnails OfflineCache thumbnails
-        rm -f adblockplus/patterns-backup* adblockplus/cache.js chromeappstore.sqlite
-        cd ..
-    done
+    if [ -d "${FIREFOX_HOMEDIR}" ]; then
+        cd "${FIREFOX_HOMEDIR}"
+        rm -r Crash\ Reports Pending\ Pings 2> /dev/null || true
+        for profile in Profiles/*; do
+            cd "./${profile}"
+            rm -rf crashes bookmarkbackups thumbnails datareporting gmp-widevinecdm minidumps storage/default/https+++*
+            rm -f Telemetry.FailedProfileLocks.txt ExperimentStoreData.json formhistory.sqlite*
+            cd "${FIREFOX_HOMEDIR}"
+        done
+    fi
 }
 
 function bleachbit_func()
