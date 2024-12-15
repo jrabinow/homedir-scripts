@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--with-name",
         action="store_true",
-        help="display queryparam name (is default if not specifying specific params",
+        help="display queryparam name (is default if not specifying specific params)",
     )
     args: argparse.Namespace = parser.parse_args()
     if args.debug:
