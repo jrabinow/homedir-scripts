@@ -1,0 +1,81 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+sub usage {
+    print "Usage: $0 <ldif_file> [-o output_file]\n";
+}
+
+
+# Quote CSV fields properly
+sub quote {
+    my $value = shift;
+    $value =~ s/"/""/g;       # Escape double quotes
+    return qq("$value");      # Wrap field in double quotes
+}
+
+sub main {
+my $output_file;
+# Define options
+GetOptions(
+    'o=s' => \$output_file,    # Option -o with a string argument
+    'help|h' => sub {          # Option --help or -h
+        usage();
+        exit 0;
+    }
+) or die "Invalid options\n";
+
+# Get the input file
+my $ldif_file = shift @ARGV or usage() and die;
+
+open(my $ldif_fh, '<', $ldif_file) or die "Cannot open $ldif_file: $!\n";
+
+# Open the output file or default to STDOUT
+my $csv_fh;
+if ($output_file) {
+    open($csv_fh, '>', $output_file) or die "Cannot create $output_file: $!\n";
+} else {
+    $csv_fh = *STDOUT; # Default to terminal output
+}
+
+# Track attributes and entries
+my @attributes;
+my %entry;
+my %seen;
+my @entries;
+
+while (my $line = <$ldif_fh>) {
+    chomp $line;
+    next if $line =~ /^\s*$/ || $line =~ /^#/;
+
+    if ($line =~ /^dn:\s*(.+)/) {
+        push @entries, {%entry} if %entry;
+        %entry = ('dn' => $1);
+        $seen{'dn'}++;
+    } elsif ($line =~ /^(\w+):\s*(.+)/) {
+        $entry{$1} = $2;
+        $seen{$1}++;
+    }
+}
+
+push @entries, {%entry} if %entry; # Add the last entry
+@attributes = sort keys %seen;
+
+# Write CSV header
+print $csv_fh join(",", map { quote($_) } @attributes) . "\n";
+
+# Write CSV rows
+for my $entry (@entries) {
+    print $csv_fh join(",", map { quote($entry->{$_} // '') } @attributes) . "\n";
+}
+
+close $ldif_fh;
+close $csv_fh;
+}
+
+# If this script is run directly, call the main function
+if (not caller()) {
+    main()
+}
