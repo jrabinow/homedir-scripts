@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+# write some cool doc here
+
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+
+function usage()
+{
+    cat << EOF
+Usage: ${0##*/}" [OPTION]...
+
+Options:
+    -h, --help: show this help dialog
+EOF
+}
+
+function 2psql()
+{
+    sed -E "s/^\s*/'/g;s/\s*$/',/" \
+        | tr -d '\n' \
+        | sed -E 's/^/(/;s/,$/)/'
+}
+
+function main()
+{
+    AS_VALUES=false
+
+    while getopts "h-:" opt; do
+        case ${opt} in
+            h) # help message
+                usage
+                exit 0
+                ;;
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    values)
+                        AS_VALUES=true
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
+                printf 'Unknown option, exiting now\n' >&2
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+    [[ ${1:-} == '--' ]] && shift
+
+    if [ $# -ge 1 ]; then
+        while [ $# -ge 1 ]; do
+            filepath="${1}"
+            shift
+            2psql < "${filepath}"
+        done
+    else
+        2psql
+    fi
+    printf "\n"
+}
+
+if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    set -e -u
+    set -o pipefail
+    main "$@"
+fi
