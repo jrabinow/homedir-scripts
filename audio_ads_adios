@@ -73,9 +73,10 @@ function spotify_launchnplay()
         # ps: Invalid process id: osascript failure
         #
         # # fuck MS teams
+        # # Also fuck intellij/android studio
         #
         # shellcheck disable=SC2015
-        osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true and name is not "MSTeams"' \
+        osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true and name is not "MSTeams" and name is not "studio" and name is not "idea"' \
             -e 'tell application "Spotify" to launch' \
             -e 'delay 0.5' \
             -e 'tell application foregroundApp to activate' \
