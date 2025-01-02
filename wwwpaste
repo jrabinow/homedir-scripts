@@ -16,6 +16,18 @@ When posting, FILE argument is optional. If not provided, wwwpaste will read std
 EOF
 }
 
+function to_clipboard()
+{
+    case "${OSTYPE}" in
+        darwin*)
+            pbcopy
+            pbpaste
+            ;;
+        *)
+            tee
+    esac
+}
+
 function main()
 {
     while getopts "h-:" opt; do
@@ -57,15 +69,14 @@ function main()
         post)
             if [ "${#}" -eq 0 ]; then
                 curl -s -X POST "https://paste.rs/" --data-binary @- \
-                    | pbcopy
+                    | to_clipboard
             else
                 file="${1}"
                 shift
                 test -r "${file}" \
                     && curl -s -X POST "https://paste.rs/" --data-binary "@${file}" \
-                    | pbcopy
+                    | to_clipboard
             fi
-            pbpaste
             printf "\n"
             ;;
         del*)
