@@ -7,19 +7,25 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS="google-cloud-sdk qt5-qttools"
+readonly PORTS="google-cloud-sdk qt5-qttools qt6-qttools"
 # these ports change often and won't be fixed soon
-readonly SKIP_PORT_MD5="google-cloud-sdk"
+readonly SKIP_PORT_MD5=(google-cloud-sdk qt5-qttools qt6-qttools)
 
 function handle_google-cloud-sdk()
 {
     portfile="${1}"
     shift
     set_param "${portfile}" python.default_version 312
-    set_param "${portfile}" revision 1
 }
 
 function handle_qt5-qttools()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" llvm_version 19
+}
+
+function handle_qt6-qttools()
 {
     portfile="${1}"
     shift
@@ -30,7 +36,7 @@ function handle_qt5-qttools()
 # ==============================================================
 # ==============================================================
 
-if [ -n "${DEBUG}" ]; then
+if [[ -n "${DEBUG}" ]]; then
     exec 5> /tmp/bash_debug_output.txt
     BASH_XTRACEFD="5"
     PS4='$LINENO: '
@@ -85,8 +91,12 @@ function handle_depends()
             ;;
         mv)
             newval="${1}"
-            sed -i -E "s/\bport:${value}\b/port:${newval}/g" "${portfile}"
             shift
+            sed -i -E "s/\bport:${value}\b/port:${newval}/g" "${portfile}"
+            ;;
+        *)
+            printf "Unknown action %s\n" "${action}"
+            exit 1
             ;;
     esac
 }
@@ -110,12 +120,12 @@ function macports_localchanges()
         portfile="$(port file "${portname}")"
         portfile_md5_actual="$(md5sum "${portfile}" | awk '{print $1}')"
         portfile_md5_expected="${freezeports_md5[${portname}]}"
-        if [ "${portfile_md5_actual}" != "${portfile_md5_expected}" ] \
-            && [[ ! ".*${portname}.*" =~ ${SKIP_PORT_MD5} ]]; then
+        if [[ "${portfile_md5_actual}" != "${portfile_md5_expected}" \
+            && ! "${SKIP_PORT_MD5[*]}" =~ (^|[[:space:]])${portname}([[:space:]]|$) ]]; then
             tmpfile=$(mktemp)
             echo "${portname} updated!"
-            echo -e "\"m\tLINE\t0\n\t$(md5sum "${portfile}" \
-                | awk "{print \$1  \"\t${portname}\"}")" > "${tmpfile}"
+            vim_cmd_payload="$(md5sum "${portfile}" | awk "{print \$1  \"\t${portname}\"}")"
+            echo -e "\"m\tLINE\t0\n\t${vim_cmd_payload}" > "${tmpfile}"
             vim -i "${tmpfile}" -O "${FREEZEPORTS_HASHES}" "${portfile}"
             rm "${tmpfile}"
         else
@@ -207,7 +217,7 @@ function main()
     port_select_review
 }
 
-if [ "${BASH_SOURCE[0]}" == "$0" ]; then
-    main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     set -e -u -o pipefail
+    main "$@"
 fi
