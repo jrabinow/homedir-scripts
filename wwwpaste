@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
-set -e -u
-set -o pipefail
+if [ -n "${DEBUG}" ]; then
+    exec 5> /tmp/bash_debug_output.txt
+    BASH_XTRACEFD="5"
+    PS4='$LINENO: '
+    set -x -T
+fi
+
 
 # write some cool doc here
+
+PASTE_PROVIDER=pasters
 
 function usage()
 {
@@ -12,6 +19,9 @@ Usage: ${0##*/}" [OPTION]... get PASTE_ID
 Usage: ${0##*/}" [OPTION]... post [FILE]
 Usage: ${0##*/}" [OPTION]... delete PASTE_ID|URL
 Options: --help, -h: show this help dialog
+         --backend: select server to which to paste to, in case default is down. Valid choices are
+                dpaste
+                pasters (default)
 When posting, FILE argument is optional. If not provided, wwwpaste will read stdin
 EOF
 }
@@ -28,6 +38,68 @@ function to_clipboard()
     esac
 }
 
+function pasters_get()
+{
+    id="${1##https://paste.rs/}"
+    shift
+    curl "https://paste.rs/${id}"
+}
+
+function pasters_post()
+{
+    if [ "${#}" -eq 0 ]; then
+        curl -s -X POST "https://paste.rs/" --data-binary @- \
+            | to_clipboard
+    else
+        file="${1}"
+        shift
+        test -r "${file}" \
+            && curl -s -X POST "https://paste.rs/" --data-binary "@${file}" \
+            | to_clipboard
+    fi
+    printf "\n"
+}
+
+function pasters_del()
+{
+    id="${1##https://paste.rs/}"
+    shift
+    curl -X DELETE "https://paste.rs/${id}"
+}
+
+# https://docs.dpaste.org/api/
+function dpaste_get()
+{
+    id="${1##https://dpaste.org/}"
+    shift
+    curl "https://dpaste.org/${id}/raw"
+}
+
+function dpaste_post()
+{
+    if [ "${#}" -eq 0 ]; then
+        curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ \
+            | to_clipboard
+     else
+        file="${1}"
+        shift
+        test -r "${file}" \
+            && curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ < "${file}" \
+            | to_clipboard
+    fi
+}
+
+function dpaste_del()
+{
+    echo "DISABLED DUE TO DPASTE CREATOR PARANOIA; IMPLEMENT ME USING COOKIES"
+    return 1
+    id="${1##https://dpaste.org/}"
+    shift
+    curl -X POST "https://dpaste.org/${id}#delete" \
+        -H 'Referer: https://dpaste.org/'
+        #--data-raw 'csrfmiddlewaretoken=14RRcgjHXC313YwZyN3iDiZo6hu9O3JD0pEwA1QKEOmHgCcbAOFGShho1VvmA5wX^&delete=1'
+}
+
 function main()
 {
     while getopts "h-:" opt; do
@@ -41,6 +113,10 @@ function main()
                     help)
                         usage
                         exit 0
+                        ;;
+                    backend)
+                        PASTE_PROVIDER="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
                         ;;
                     *)
                         printf 'Unknown option, exiting now\n' >&2
@@ -62,27 +138,13 @@ function main()
 
     case "${action}" in
         get)
-            id="${1##https://paste.rs/}"
-            shift
-            curl "https://paste.rs/${id}"
+            "${PASTE_PROVIDER}_get" "${@}"
             ;;
         post)
-            if [ "${#}" -eq 0 ]; then
-                curl -s -X POST "https://paste.rs/" --data-binary @- \
-                    | to_clipboard
-            else
-                file="${1}"
-                shift
-                test -r "${file}" \
-                    && curl -s -X POST "https://paste.rs/" --data-binary "@${file}" \
-                    | to_clipboard
-            fi
-            printf "\n"
+            "${PASTE_PROVIDER}_post" "${@}"
             ;;
         del*)
-            id="${1##https://paste.rs/}"
-            shift
-            curl -X DELETE "https://paste.rs/${id}"
+            "${PASTE_PROVIDER}_del" "${@}"
             ;;
         *)
             usage
@@ -91,5 +153,7 @@ function main()
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    set -e -u
+    set -o pipefail
     main "$@"
 fi
