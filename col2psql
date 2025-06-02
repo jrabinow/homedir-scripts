@@ -22,14 +22,13 @@ EOF
 function 2psql()
 {
     sed -E "s/^\s*/'/g;s/\s*$/',/" \
+        | sed -E "s/'([0-9]+)'/\1/" \
         | tr -d '\n' \
         | sed -E 's/^/(/;s/,$/)/'
 }
 
 function main()
 {
-    AS_VALUES=false
-
     while getopts "h-:" opt; do
         case ${opt} in
             h) # help message
@@ -41,9 +40,6 @@ function main()
                     help)
                         usage
                         exit 0
-                        ;;
-                    values)
-                        AS_VALUES=true
                         ;;
                     *)
                         printf 'Unknown option, exiting now\n' >&2
