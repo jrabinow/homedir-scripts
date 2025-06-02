@@ -197,6 +197,7 @@ function main()
         .redhat
         .repoconfig
         .scala_history
+        .skiko
         .sqlite_history
         .sunstudio
         .stack
@@ -480,15 +481,15 @@ function main()
 function firefox_cleanup()
 {
     case "${OSTYPE}" in
-    darwin*)
-        FIREFOX_HOMEDIR="$HOME/Library/Application Support/Firefox"
-        ;;
-    linux-gnu)
-        FIREFOX_HOMEDIR=~/.mozilla/firefox
-        ;;
-    *)
-        echo Not Found
-        ;;
+        darwin*)
+            FIREFOX_HOMEDIR="$HOME/Library/Application Support/Firefox"
+            ;;
+        linux-gnu)
+            FIREFOX_HOMEDIR=~/.mozilla/firefox
+            ;;
+        *)
+            echo Not Found
+            ;;
     esac
 
     if [ -d "${FIREFOX_HOMEDIR}" ]; then
