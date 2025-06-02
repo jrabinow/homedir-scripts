@@ -7,7 +7,7 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS="google-cloud-sdk qt5-qttools qt6-qttools"
+readonly PORTS="google-cloud-sdk qt5-qttools qt6-qttools libpsl"
 # these ports change often and won't be fixed soon
 readonly SKIP_PORT_MD5=(google-cloud-sdk qt5-qttools qt6-qttools)
 
@@ -15,23 +15,29 @@ function handle_google-cloud-sdk()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" python.default_version 312
+    set_param "${portfile}" python.default_version 313
 }
 
 function handle_qt5-qttools()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" llvm_version 19
+    set_param "${portfile}" llvm_version 20
 }
 
 function handle_qt6-qttools()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" llvm_version 19
+    set_param "${portfile}" llvm_version 20
 }
 
+function handle_libpsl()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" py_ver 313
+}
 # ==============================================================
 # ==============================================================
 # ==============================================================
@@ -114,6 +120,12 @@ function readhash()
 
 function macports_localchanges()
 {
+    # we store the hash in $FREEZEPORTS_HASHES file
+    # If the stored hash does not match the computed hash, that means the portfile
+    # has changed and we should reapply our changes manually and potentially
+    # update the handle_portname function in thiis script as well
+    # If the stored hash does match the computed hash, the handle_portname
+    # function will handle everything for us
     declare -A freezeports_md5=()
     for portname in ${PORTS}; do
         readhash "${portname}"
