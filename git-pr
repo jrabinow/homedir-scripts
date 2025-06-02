@@ -36,6 +36,37 @@ source ~/.local/share/bash/perscreds
 # shellcheck disable=SC1090
 source ~/.local/share/bash/joboxcreds
 
+function git_default_branch()
+{
+    cut -d/ -f4- 2> /dev/null < "$(git rev-parse --show-toplevel)/.git/refs/remotes/origin/HEAD" \
+        || git remote show origin | grep 'HEAD branch:' \
+        | cut -d: -f2 | xargs printf "ref: refs/remotes/origin/%s" \
+            | tee "$(git rev-parse --show-toplevel)/.git/refs/remotes/origin/HEAD" \
+            | cut -d/ -f4-
+}
+
+function build_pr_description()
+{
+    summary="${1}"
+    shift
+    description="${1}"
+    shift
+    test_plan="${1}"
+    shift
+
+    pr_desc=""
+    if [[ ${summary} != "" ]]; then
+        pr_desc="$(printf "## Summary\n%s" "${summary}")"
+    fi
+    if [[ ${description} != "" ]]; then
+        pr_desc="${pr_desc}$(printf "\n\n## Description\n%s" "${description}")"
+    fi
+    if [[ ${test_plan} != "" ]]; then
+        pr_desc="${pr_desc}$(printf "\n\n## Test plan\n%s\n" "${test_plan}")"
+    fi
+    echo "${pr_desc}"
+}
+
 function main()
 {
     # shellcheck disable=SC2153
@@ -43,7 +74,7 @@ function main()
     readonly jira_user="${JIRA_LOGIN}"
     # shellcheck disable=SC2153
     readonly jira_api_token="${JIRA_API_TOKEN}"
-    dst_branch=master
+    dst_branch="$(git_default_branch)"
 
     while getopts "b:ht:" opt; do
         case ${opt} in
@@ -69,7 +100,7 @@ EOF
         esac
     done
     shift $((OPTIND - 1))
-    [[ "${1:-}" == '--' ]] && shift
+    [[ ${1:-} == '--' ]] && shift
 
     arg="${1:-}"
     shift || true
@@ -94,13 +125,13 @@ EOF
                 -H 'Content-Type: application/json' \
                 "${jira_domain}/rest/api/latest/issue/${ticket_id}")
             local jira_ticket_title
-            jira_ticket_title="$(jq -r '.fields.summary' <<<"${ticket_info}")"
+            jira_ticket_title="$(jq -r '.fields.summary' <<< "${ticket_info}")"
             pr_title="${ticket_id}: ${title:-${jira_ticket_title:-$(git log -n1 --pretty=format:%s)}}"
             # last sed is to convert from jira format links to github markdown
             ticket_summary="$(jq -r '.fields.summary, .fields.description' <<< "${ticket_info}" \
                 | dos2unix \
                 | sed -E 's/\[([^\|]+)\|([^\|]+)(\|smart-link)?\]/[\1](\2)/g')"
-            if [[ "${ticket_summary}" == 'null' ]]; then
+            if [[ ${ticket_summary} == 'null' ]]; then
                 ticket_summary="${pr_title}"
             fi
             pr_summary="${jira_domain}/browse/${ticket_id}"$'\n'$"${ticket_summary/null/}"
@@ -109,8 +140,10 @@ EOF
             pr_title="${title:-$(git log -n1 --pretty=format:%s)}"
             pr_summary="${pr_title}"
         fi
-        pr_description="$(git changelog | tac | awk '{sub($1, ""); print $0}' | sed 's/^/-/')"
-        if [[ "$(wc -l <<<"${pr_description}")" -eq 1 ]]; then
+        pr_description="### Git abbrev changelog
+$(git changelog | tac | awk '{sub($1, ""); print $0}' | sed 's/^/-/')"
+        # if only one commit in the changelog
+        if [[ "$(wc -l <<< "${pr_description}")" -eq 2 ]]; then
             pr_description="$(git log -n1 --pretty=format:%b)"
         fi
     fi
@@ -139,14 +172,23 @@ EOF
     pr_title=$(grep '^Title:' "${commit_desc_file}" | cut -d' ' -f2-)
     dst_branch=$(grep '^Branch: ' "${commit_desc_file}" | cut -d' ' -f2-)
     # https://stackoverflow.com/a/38972737
-    summary=$(awk '/^## Summary/{flag=1; next} /^## Description/{flag=0} flag' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    description=$(awk '/^## Description/{flag=1; next} /^## Test plan/{flag=0} flag' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    test_plan=$(sed -E '1,/^## Test plan/d' "${commit_desc_file}" | sed 's/"/\\"/g' || true)
-    pr_desc="$(printf "## Summary\n%s\n\n## Description\n%s\n\n## Test plan\n%s\n" "${summary}" "${description}" "${test_plan}")"
-    printf -- "%s\n%s\n------------------\n%s\n----------------------\n" "${pr_title}" "${dst_branch}" "${pr_desc}"
+    summary=$(awk '/^## Summary/{flag=1; next} /^## (Description|Test plan)/{flag=0} flag' \
+        "${commit_desc_file}" \
+        | sed 's/"/\\"/g' \
+        || true)
+    description=$(awk '/^## Description/{flag=1; next} /^## Test plan/{flag=0} flag' \
+        "${commit_desc_file}" \
+        | sed 's/"/\\"/g' \
+        || true)
+    test_plan=$(sed -E '1,/^## Test plan/d' "${commit_desc_file}" \
+        | sed 's/"/\\"/g' \
+        || true)
+    pr_desc="$(build_pr_description "${summary}" "${description}" "${test_plan}")"
+    printf -- "%s\n%s\n------------------\n%s\n----------------------\n" \
+        "${pr_title}" "${dst_branch}" "${pr_desc}"
     remote=$(git remote)
     remote_src_branch=$(git rev-parse --abbrev-ref --symbolic-full-name HEAD || true)
-    if [[ -z "${remote_src_branch}" ]]; then
+    if [[ -z ${remote_src_branch} ]]; then
         git branch -u "${remote}" "${git_src_branch}"
     fi
     git push -u "${remote}" "${git_src_branch}"
