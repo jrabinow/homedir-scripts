@@ -7,26 +7,25 @@
 # https://github.com/Jugran/spotify-ad-killer/blob/master/spotify-ad-killer.sh
 
 if [ -n "${DEBUG}" ]; then
-    exec 5>/tmp/bash_debug_output.txt
+    exec 5> /tmp/bash_debug_output.txt
     BASH_XTRACEFD="5"
     PS4='$LINENO: '
     set -x -T
 fi
-set -e -u
-set -o pipefail
 
 # Know which signal is caught
 # man 7 signal
 for i in {1..31}; do
+    # ignore sigchld and sigwinch
     # shellcheck disable=SC2064
-    if [[ "${i}" -ne 20 ]]; then
+    if [[ ${i} -ne 20 && ${i} -ne 28 ]]; then
         trap "bell -m 'signal ${i} caught!'" "${i}"
     fi
 done
 
 function usage()
 {
-    cat <<EOF
+    cat << EOF
 Usage: ${0##*/}" [OPTION]...
 Options: --help, -h: show this help dialog
 EOF
@@ -38,12 +37,12 @@ function monitor_and_skip_ads()
 
     while is_spotify_running; do
         track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
-        if [[ ${track_id} =~ "spotify:ad:" || ("${track_id}" == "" && $(is_spotify_running)) ]]; then
+        if [[ ${track_id} =~ "spotify:ad:" || (${track_id} == "" && $(is_spotify_running)) ]]; then
             pkill -9 -i spotify
             sleep 1
             spotify_launchnplay
             track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
-            if [[ ${track_id} =~ "spotify:ad:" || "${track_id}" == "" || "${track_id}" == "${old_track_id}" ]]; then
+            if [[ ${track_id} =~ "spotify:ad:" || ${track_id} == "" || ${track_id} == "${old_track_id}" ]]; then
                 osascript -e 'tell application "spotify" to next track'
             fi
             osascript -e 'tell application "spotify" to play'
@@ -52,6 +51,14 @@ function monitor_and_skip_ads()
         sleep 1
     done
     bell -m "no spotify running; audio_ads_adios exiting now"
+}
+
+function process_supervisor()
+{
+    while is_spotify_running; do
+        monitor_and_skip_ads &
+        wait "$(jobs -p)"
+    done
 }
 
 function is_spotify_running()
@@ -92,26 +99,26 @@ function main()
 {
     while getopts "h-:" opt; do
         case ${opt} in
-        h) # help message
-            usage
-            exit 0
-            ;;
-        -)
-            case "${OPTARG}" in
-            help)
+            h) # help message
                 usage
                 exit 0
                 ;;
-            *)
+            -)
+                case "${OPTARG}" in
+                    help)
+                        usage
+                        exit 0
+                        ;;
+                    *)
+                        printf 'Unknown option, exiting now\n' >&2
+                        exit 1
+                        ;;
+                esac
+                ;;
+            ?)
                 printf 'Unknown option, exiting now\n' >&2
                 exit 1
                 ;;
-            esac
-            ;;
-        ?)
-            printf 'Unknown option, exiting now\n' >&2
-            exit 1
-            ;;
         esac
     done
     shift $((OPTIND - 1))
@@ -124,11 +131,12 @@ function main()
     if is_audio_adblocker_running; then
         printf "already running\n"
     else
-        monitor_and_skip_ads &
+        process_supervisor &
     fi
     exit 0
 }
 
 if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+    set -e -u -o pipefail
     main "$@"
 fi
