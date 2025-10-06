@@ -34,7 +34,7 @@ set -o pipefail
 # shellcheck disable=SC1090
 source ~/.local/share/bash/perscreds
 # shellcheck disable=SC1090
-source ~/.local/share/bash/joboxcreds
+source ~/.local/share/bash/taluscreds
 
 function git_default_branch()
 {
