@@ -2,20 +2,18 @@
 
 # updates all git repos in directory
 
-if [ -n "${DEBUG}" ]; then
+if [[ -n "${DEBUG}" ]]; then
     exec 5> /tmp/bash_debug_output.txt
     BASH_XTRACEFD="5"
     PS4='$LINENO: '
     set -x -T
 fi
-set -e -u
-set -o pipefail
 
 function elem_in()
 {
     local e match="$1"
     shift
-    for e; do [[ $e == "$match" ]] && return 0; done
+    for e; do [[ "${e}" == "${match}" ]] && return 0; done
     return 1
 }
 
@@ -24,7 +22,8 @@ function get_github_token()
 {
     git config --get-all credential.helper \
         | awk '/store --file/ {print $NF}' \
-        | xargs -I% sh -c "cat %"
+        | xargs -I% sh -c "cat %" \
+        | sed -n 's|https://[^:]*:\([^@]*\)@github.com|\1|p'
 }
 
 # python requests version: https://stackoverflow.com/a/63720399
@@ -35,9 +34,7 @@ function github_authheader()
     shift
     local github_token="${1}"
     shift
-    local b64_token
-    b64_token="$(echo -n "${orgname}:${github_token}" | base64)"
-    echo "Authorization: Basic ${b64_token}"
+    echo "Authorization: Bearer ${github_token}"
 }
 
 function run_git_cmd()
@@ -70,7 +67,7 @@ function update_existing_repos()
             run_git_cmd "${gitargs}" &
         else
             repostatus=$(git status --short | grep -v '^??' || true)
-            if [ -z "${repostatus}" ]; then
+            if [[ -z "${repostatus}" ]]; then
                 run_git_cmd "${gitargs}" &
             else
                 printf "\033[31m=========== DIRTY REPO %s ==========\033[0m\n" "${subdir}"
@@ -80,42 +77,97 @@ function update_existing_repos()
     done
 }
 
-function clone_any_missing_repos()
+# Lists all repositories for a GitHub organization using GraphQL API
+# Usage: list_all_repos_for_org <orgname>
+# Returns: List of SSH clone URLs for all repositories in the organization
+function list_all_repos_for_org()
 {
-    local ORGNAME="${1}"
-    local org_repos_url
-    local repos_out
-    local response_len
-    local repo_names
-    local dirname
-    local page
-
-    readonly ORGNAME
-
-    local org_repos_url="https://api.github.com/orgs/${ORGNAME}/repos?type=all&per_page=100"
-
-    ((page = 1))
+    local cursor=null
+    local hasNextPage=true
+    local orgname="${1}"; shift
     local token
     local authheader
+    local query
+    local response
+    local repos
 
     token="$(get_github_token)"
-    authheader="$(github_authheader "${ORGNAME}" "${token}")"
+    authheader="$(github_authheader "${orgname}" "${token}")"
 
-    while :; do
-        repos_out="$(curl -s -H "${authheader}" "${org_repos_url}&page=${page}")"
-        repo_names="$(jq -r '.[].clone_url' <<< "${repos_out}")"
+    while [[ "${hasNextPage}" = true ]]; do
+        query=$(jq -n --arg org "${orgname}" --argjson cursor "${cursor}" '{
+            query: "
+              query($org: String!, $cursor: String) {
+                organization(login: $org) {
+                  repositories(first: 100, after: $cursor) {
+                    pageInfo {
+                      hasNextPage
+                      endCursor
+                    }
+                    nodes {
+                      name
+                      url
+                      sshUrl
+                    }
+                  }
+                }
+              }
+            ",
+            variables: {
+                org: $org,
+                cursor: $cursor
+            }
+        }')
 
-        for repo in ${repo_names}; do
-            dirname="$(basename "${repo}" .git)"
-            if [ ! -d "${dirname}" ] && ! elem_in "${dirname}" "${IGNORE_REPOS[@]}"; then
-                echo "MISSING ${dirname}; cloning"
-                git clone "${repo}"
-            fi
-        done
+        response=$(curl -s --fail-with-body -X POST \
+            -H "${authheader}" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/graphql \
+            --data "${query}")
 
-        ((page += 1))
-        response_len=$(jq '.|length' <<< "${repos_out}")
-        [ "${response_len}" -ge 1 ] || break
+        # Check for errors in the response
+        if echo "${response}" | jq -e '.errors' > /dev/null 2>&1; then
+            echo "Error in GraphQL response:" >&2
+            echo "${response}" | jq '.errors' >&2
+            return 1
+        fi
+
+        # Extract repository information (SSH URLs for cloning)
+        repos=$(echo "${response}" | jq -r '.data.organization.repositories.nodes[] | .sshUrl')
+        echo "${repos}"
+
+        # Update pagination variables
+        hasNextPage=$(echo "${response}" | jq -r '.data.organization.repositories.pageInfo.hasNextPage')
+        cursor=$(echo "${response}" | jq -r '.data.organization.repositories.pageInfo.endCursor')
+
+        # Handle null cursor - convert string "null" to actual null for jq
+        if [[ "${cursor}" = "null" ]]; then
+            cursor=null
+        else
+            cursor="\"${cursor}\""
+        fi
+    done
+}
+
+function clone_any_missing_repos()
+{
+    local orgname="${1}"
+    local repo_urls
+    local dirname
+
+    readonly orgname
+
+    repo_urls="$(list_all_repos_for_org "${orgname}")"
+
+    for repo_url in ${repo_urls}; do
+        # Extract directory name from SSH URL (git@github.com:org/repo.git -> repo)
+        dirname="$(basename "${repo_url}" .git)"
+
+        if [[ ! -d "${dirname}" ]] && ! elem_in "${dirname}" "${IGNORE_REPOS[@]}"; then
+            echo "MISSING ${dirname}; cloning from ${repo_url}"
+            git clone "${repo_url}"
+        fi
     done
 }
 
@@ -129,7 +181,7 @@ function main()
     local IGNORE_REPOS
 
     while getopts "Cfht-" opt; do
-        case ${opt} in
+        case "${opt}" in
             C)
                 ROOTDIR="${!OPTIND}"
                 OPTIND=$((OPTIND + 1))
@@ -146,6 +198,10 @@ Options: -f: update dirty repos
          -t ARG: specify team name
          -C ARG: specify rootdir
          -- ARG1 [ARG2 ...]: arguments run by git instead of "git pull"
+
+This script will automatically clone missing repositories from the organization
+and update existing repositories. Use .gitreposteam to specify the organization
+and .gitreposignore to exclude specific repositories.
 EOF
                 exit 0
                 ;;
@@ -158,7 +214,7 @@ EOF
                 GITARGS="${*}"
                 shift $#
                 ;;
-            ?)
+            *)
                 printf "Unknown option, exiting now\n" >&2
                 exit 1
                 ;;
@@ -168,16 +224,16 @@ EOF
     shift $((OPTIND - 1))
     [[ ${1:-} == '--' ]] && shift
 
-    if [ $# -ge 1 ] || [ -z "${GITARGS}" ]; then
+    if [[ $# -ge 1 ]] || [[ -z "${GITARGS}" ]]; then
         GITARGS="${*:-pull}"
     fi
 
-    if [ "${ROOTDIR}" == "." ]; then
+    if [[ "${ROOTDIR}" == "." ]]; then
         dirpath=.
         while
-            [ "${dirpath}" != "/" ] \
-                && [ ! -f "${dirpath}/.gitreposteam" ] \
-                && [ ! -f "${dirpath}/.gitreposignore" ]
+            [[ "${dirpath}" != "/" ]] \
+                && [[ ! -f "${dirpath}/.gitreposteam" ]] \
+                && [[ ! -f "${dirpath}/.gitreposignore" ]]
         do
             dirpath="$(realpath "${dirpath}/..")"
         done
@@ -189,13 +245,13 @@ EOF
 
     cd "${ROOTDIR}"
 
-    if [ -f .gitreposignore ]; then
+    if [[ -f .gitreposignore ]]; then
         mapfile -t IGNORE_REPOS < .gitreposignore
     else
         IGNORE_REPOS=()
     fi
     if ! "${team_name_isset}"; then
-        if [ -f .gitreposteam ]; then
+        if [[ -f .gitreposteam ]]; then
             TEAM_NAME="$(cat .gitreposteam)"
         else
             TEAM_NAME="UNKNOWN"
@@ -208,9 +264,12 @@ EOF
     readonly TEAM_NAME
     readonly IGNORE_REPOS
 
-    #if [ "${GITARGS}" == "pull" ]; then
-    #    clone_any_missing_repos "${TEAM_NAME}"
-    #fi
+    # Always clone missing repositories first
+    if [[ "${GITARGS}" == "pull" ]]; then
+        clone_any_missing_repos "${TEAM_NAME}"
+    fi
+
+    # Then update existing repositories
     update_existing_repos "${ROOTDIR}" "${FORCE_DIRTY}" "${GITARGS}"
 
     # jobs -p returns list of children as pids, one per line. Don't quote
@@ -218,6 +277,8 @@ EOF
     wait $(jobs -p)
 }
 
-if [ "${BASH_SOURCE[0]}" == "$0" ]; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    set -e -u
+    set -o pipefail
     main "$@"
 fi
