@@ -73,8 +73,8 @@ function set_param()
     shift
     value="${*}"
     shift
-    (grep -qE "^\s*(set )?${param}(\s+)" "${portfile}" \
-        && sed -i -E "s/^(set )?${param}(\s+).*$/\1${param}\2${value}/g" "${portfile}") \
+    (grep -qE "^(\s*set )?${param}(\s+)" "${portfile}" \
+        && sed -i -E "s/^(\s*set )?${param}(\s+).*$/\1${param}\2${value}/g" "${portfile}") \
         || echo -e "\n${param}   ${value}" >> "${portfile}"
 }
 
