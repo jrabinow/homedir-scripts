@@ -73,7 +73,7 @@ function set_param()
     shift
     value="${*}"
     shift
-    (grep -qE "^(set )?${param}(\s+)" "${portfile}" \
+    (grep -qE "^\s*(set )?${param}(\s+)" "${portfile}" \
         && sed -i -E "s/^(set )?${param}(\s+).*$/\1${param}\2${value}/g" "${portfile}") \
         || echo -e "\n${param}   ${value}" >> "${portfile}"
 }
@@ -155,10 +155,12 @@ function postinstall_tasks()
     # it doesn't read ~/.config/git/config. Let's remove it
     sudo rm -f /opt/local/etc/gitconfig
 
-    # shellcheck disable=SC2016
-    port contents keychain \
-        | grep /opt/local/bin \
-        | xargs sudo sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
+    if port installed keychain|grep -q 'The following ports are currently installed'; then
+        # shellcheck disable=SC2016
+        port contents keychain \
+            | grep /opt/local/bin \
+            | xargs sudo sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
+    fi
 }
 
 function port_select_review()
