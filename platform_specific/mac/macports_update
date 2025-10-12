@@ -7,29 +7,29 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS="google-cloud-sdk qt5-qttools qt6-qttools libpsl"
+readonly PORTS="kops qt5-qttools qt6-qttools libpsl"
 # these ports change often and won't be fixed soon
-readonly SKIP_PORT_MD5=(google-cloud-sdk qt5-qttools qt6-qttools)
+readonly SKIP_PORT_MD5=(qt5-qttools qt6-qttools libpsl)
 
-function handle_google-cloud-sdk()
+function handle_kops()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" python.default_version 313
+    handle_depends "${portfile}" mv kubectl1.32 kubectl1.34
 }
 
 function handle_qt5-qttools()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" llvm_version 20
+    set_param "${portfile}" llvm_version 21
 }
 
 function handle_qt6-qttools()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" llvm_version 20
+    set_param "${portfile}" llvm_version 21
 }
 
 function handle_libpsl()
