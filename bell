@@ -113,19 +113,14 @@ function main()
     shift $((OPTIND - 1))
     [[ ${1-} == '--' ]] && shift
 
-    if "${run_cmd}" && "${follow_pid}"; then
-        printf "error: can only use one of -p or -c\n" >&2
-        usage
-        exit 1
-    fi
-
-    if "${run_cmd}"; then
-        eval "${cmd}" || true
-        message="$(build_message "${message}" "${cmd}")"
-        bellfunc "${message}"
-    elif "${follow_pid}"; then
+    if "${follow_pid}"; then
         wait_for_exit "${pid}"
-        message="$(build_message "${message}" "pid ${pid} done!")"
+        if "${run_cmd}"; then
+            eval "${cmd}" || true
+            message="$(build_message "${message}" "${cmd}")"
+        else
+            message="$(build_message "${message}" "pid ${pid} done!")"
+        fi
         bellfunc "${message}"
     else
         message="$(build_message "${message}" "terminal bell went off!")"
