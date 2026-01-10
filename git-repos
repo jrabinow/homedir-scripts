@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 
-# updates all git repos in directory
+# runs any git command on all local repos in the current directory. Default is:
+# - check github for all missing repos by the org and clone them locally
+# - pull on the current branch
+#
+# setup:
+# - export GITHUB_TOKEN=ghp_your_github_token_here
+# - add the name of the org to .gitreposteam (current directory)
+# - add the list of repos you don't want to clone or operate on in
+#   .gitreposignore (current directory)
+# - let'er rip
 
 if [[ -n "${DEBUG}" ]]; then
     exec 5> /tmp/bash_debug_output.txt
@@ -8,6 +17,22 @@ if [[ -n "${DEBUG}" ]]; then
     PS4='$LINENO: '
     set -x -T
 fi
+
+function usage()
+{
+    cat << EOF
+Usage: $(basename "${0}") [OPTION]...
+Options: -f: update dirty repos
+         -h: show this help dialog
+         -t ARG: specify team name
+         -C ARG: specify rootdir
+         -- ARG1 [ARG2 ...]: arguments run by git instead of "git pull"
+
+This script will automatically clone missing repositories from the organization
+and update existing repositories. Use .gitreposteam to specify the organization
+and .gitreposignore to exclude specific repositories.
+EOF
+}
 
 function elem_in()
 {
@@ -191,18 +216,7 @@ function main()
                 shift
                 ;;
             h) # help message
-                cat << EOF
-Usage: $(basename "${0}") [OPTION]...
-Options: -f: update dirty repos
-         -h: show this help dialog
-         -t ARG: specify team name
-         -C ARG: specify rootdir
-         -- ARG1 [ARG2 ...]: arguments run by git instead of "git pull"
-
-This script will automatically clone missing repositories from the organization
-and update existing repositories. Use .gitreposteam to specify the organization
-and .gitreposignore to exclude specific repositories.
-EOF
+                usage
                 exit 0
                 ;;
             t)
