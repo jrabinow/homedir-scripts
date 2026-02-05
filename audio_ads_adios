@@ -27,12 +27,14 @@ function usage()
 {
     cat << EOF
 Usage: ${0##*/}" [OPTION]...
-Options: --help, -h: show this help dialog
+Options: -h, --help: show this help dialog
+         -v, --volume: set application-specific volume (0=silent, 100=max/default)
 EOF
 }
 
 function monitor_and_skip_ads()
 {
+    volume="${1}"; shift
     old_track_id=""
 
     while is_spotify_running; do
@@ -45,6 +47,7 @@ function monitor_and_skip_ads()
             if [[ ${track_id} =~ "spotify:ad:" || ${track_id} == "" || ${track_id} == "${old_track_id}" ]]; then
                 osascript -e 'tell application "spotify" to next track'
             fi
+            spotify_set_volume "${volume}"
             osascript -e 'tell application "spotify" to play'
         fi
         old_track_id="${track_id}"
@@ -53,10 +56,19 @@ function monitor_and_skip_ads()
     bell -m "no spotify running; audio_ads_adios exiting now"
 }
 
+function spotify_set_volume()
+{
+    volume="${1}"; shift
+
+    osascript -e "tell application \"spotify\" to set sound volume to ${volume}"
+}
+
 function process_supervisor()
 {
+    volume="${1}"; shift
+
     while is_spotify_running; do
-        monitor_and_skip_ads &
+        monitor_and_skip_ads "${volume}" &
         wait "$(jobs -p)"
     done
 }
@@ -97,17 +109,26 @@ function spotify_launchnplay()
 
 function main()
 {
-    while getopts "h-:" opt; do
+    local volume=100
+
+    while getopts "hv:-:" opt; do
         case ${opt} in
             h) # help message
                 usage
                 exit 0
+                ;;
+            v)
+                volume="${OPTARG}"; shift
                 ;;
             -)
                 case "${OPTARG}" in
                     help)
                         usage
                         exit 0
+                        ;;
+                    volume)
+                        volume="${!OPTIND}"
+                        OPTIND=$((OPTIND + 1))
                         ;;
                     *)
                         printf 'Unknown option, exiting now\n' >&2
@@ -127,11 +148,12 @@ function main()
     if ! is_spotify_running; then
         spotify_launchnplay
     fi
+    spotify_set_volume "${volume}"
 
     if is_audio_adblocker_running; then
         printf "already running\n"
     else
-        process_supervisor &
+        process_supervisor "${volume}" &
     fi
     exit 0
 }
