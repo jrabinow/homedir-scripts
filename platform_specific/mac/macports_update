@@ -163,6 +163,16 @@ function postinstall_tasks()
     fi
 }
 
+function duplicate_ports_installed()
+{
+    port installed \
+        | awk '{print $1}' \
+        | sort \
+        | uniq -c \
+        |sort -rn \
+        | awk '$1 >= "2" {print $0}'
+}
+
 function port_select_review()
 {
     # go through each line. Each option ($3+) is added to an array in the first
@@ -228,6 +238,7 @@ function main()
     port reclaim -N || true
     port_cutleaves
     postinstall_tasks
+    duplicate_ports_installed
     port_select_review
 }
 
