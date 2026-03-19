@@ -9,7 +9,7 @@ fi
 
 
 PASTE_PROVIDER=pasters
-BACKENDS=(pasters dpaste)
+BACKENDS=(pasters cnet)
 
 function usage()
 {
@@ -18,7 +18,7 @@ Usage: ${0##*/} [OPTION]... get PASTE_ID
 Usage: ${0##*/} [OPTION]... post [FILE]
 Usage: ${0##*/} [OPTION]... delete PASTE_ID|URL
 Options: --help, -h: show this help dialog
-         --backend BACKEND: select paste backend (default: ${PASTE_PROVIDER})
+         --backend BACKEND, -b BACKEND: select paste backend (default: ${PASTE_PROVIDER})
                    Available backends: ${BACKENDS[*]}
 When posting, FILE argument is optional. If not provided, wwwpaste will read stdin
 EOF
@@ -65,47 +65,44 @@ function pasters_del()
     curl -X DELETE "https://paste.rs/${id}"
 }
 
-# https://docs.dpaste.org/api/
-function dpaste_get()
+# https://paste.c-net.org
+function cnet_get()
 {
-    local id="${1##https://dpaste.org/}"
+    local url="${1}"
     shift
-    curl "https://dpaste.org/${id}/raw"
+    curl -s "${url}"
 }
 
-function dpaste_post()
+function cnet_post()
 {
     if [ "${#}" -eq 0 ]; then
-        curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ \
+        curl -s --data-binary @- https://paste.c-net.org/ \
             | to_clipboard
     else
         local file="${1}"
         shift
         test -r "${file}" \
-            && curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ < "${file}" \
+            && curl -s --data-binary "@${file}" https://paste.c-net.org/ \
             | to_clipboard
     fi
-    printf "\n"
 }
 
-function dpaste_del()
+function cnet_del()
 {
-    echo "DISABLED DUE TO DPASTE CREATOR PARANOIA; IMPLEMENT ME USING COOKIES"
+    printf 'Deletion is not supported by paste.c-net.org\n' >&2
     return 1
-    local id="${1##https://dpaste.org/}"
-    shift
-    curl -X POST "https://dpaste.org/${id}#delete" \
-        -H 'Referer: https://dpaste.org/'
-        #--data-raw 'csrfmiddlewaretoken=14RRcgjHXC313YwZyN3iDiZo6hu9O3JD0pEwA1QKEOmHgCcbAOFGShho1VvmA5wX^&delete=1'
 }
 
 function main()
 {
-    while getopts "h-:" opt; do
+    while getopts "hb:-:" opt; do
         case ${opt} in
             h) # help message
                 usage
                 exit 0
+                ;;
+            b)
+                PASTE_PROVIDER="${OPTARG}"
                 ;;
             -)
                 case "${OPTARG}" in
@@ -135,15 +132,29 @@ function main()
     local action="${1}"
     shift
 
+    local fn_prefix
+    case "${PASTE_PROVIDER}" in
+        pasters)
+            fn_prefix=pasters
+            ;;
+        cnet)
+            fn_prefix=cnet
+            ;;
+        *)
+            printf 'Unknown backend: %s\nAvailable backends: %s\n' "${PASTE_PROVIDER}" "${BACKENDS[*]}" >&2
+            exit 1
+            ;;
+    esac
+
     case "${action}" in
         get)
-            "${PASTE_PROVIDER}_get" "${@}"
+            "${fn_prefix}_get" "${@}"
             ;;
         post)
-            "${PASTE_PROVIDER}_post" "${@}"
+            "${fn_prefix}_post" "${@}"
             ;;
         del*)
-            "${PASTE_PROVIDER}_del" "${@}"
+            "${fn_prefix}_del" "${@}"
             ;;
         *)
             usage
