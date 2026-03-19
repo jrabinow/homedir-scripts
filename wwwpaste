@@ -8,20 +8,18 @@ if [ -n "${DEBUG}" ]; then
 fi
 
 
-# write some cool doc here
-
 PASTE_PROVIDER=pasters
+BACKENDS=(pasters dpaste)
 
 function usage()
 {
     cat << EOF
-Usage: ${0##*/}" [OPTION]... get PASTE_ID
-Usage: ${0##*/}" [OPTION]... post [FILE]
-Usage: ${0##*/}" [OPTION]... delete PASTE_ID|URL
+Usage: ${0##*/} [OPTION]... get PASTE_ID
+Usage: ${0##*/} [OPTION]... post [FILE]
+Usage: ${0##*/} [OPTION]... delete PASTE_ID|URL
 Options: --help, -h: show this help dialog
-         --backend: select server to which to paste to, in case default is down. Valid choices are
-                dpaste
-                pasters (default)
+         --backend BACKEND: select paste backend (default: ${PASTE_PROVIDER})
+                   Available backends: ${BACKENDS[*]}
 When posting, FILE argument is optional. If not provided, wwwpaste will read stdin
 EOF
 }
@@ -40,7 +38,7 @@ function to_clipboard()
 
 function pasters_get()
 {
-    id="${1##https://paste.rs/}"
+    local id="${1##https://paste.rs/}"
     shift
     curl "https://paste.rs/${id}"
 }
@@ -51,7 +49,7 @@ function pasters_post()
         curl -s -X POST "https://paste.rs/" --data-binary @- \
             | to_clipboard
     else
-        file="${1}"
+        local file="${1}"
         shift
         test -r "${file}" \
             && curl -s -X POST "https://paste.rs/" --data-binary "@${file}" \
@@ -62,7 +60,7 @@ function pasters_post()
 
 function pasters_del()
 {
-    id="${1##https://paste.rs/}"
+    local id="${1##https://paste.rs/}"
     shift
     curl -X DELETE "https://paste.rs/${id}"
 }
@@ -70,7 +68,7 @@ function pasters_del()
 # https://docs.dpaste.org/api/
 function dpaste_get()
 {
-    id="${1##https://dpaste.org/}"
+    local id="${1##https://dpaste.org/}"
     shift
     curl "https://dpaste.org/${id}/raw"
 }
@@ -80,20 +78,21 @@ function dpaste_post()
     if [ "${#}" -eq 0 ]; then
         curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ \
             | to_clipboard
-     else
-        file="${1}"
+    else
+        local file="${1}"
         shift
         test -r "${file}" \
             && curl -s -F 'format=url' -F 'content=<-' https://dpaste.org/api/ < "${file}" \
             | to_clipboard
     fi
+    printf "\n"
 }
 
 function dpaste_del()
 {
     echo "DISABLED DUE TO DPASTE CREATOR PARANOIA; IMPLEMENT ME USING COOKIES"
     return 1
-    id="${1##https://dpaste.org/}"
+    local id="${1##https://dpaste.org/}"
     shift
     curl -X POST "https://dpaste.org/${id}#delete" \
         -H 'Referer: https://dpaste.org/'
@@ -133,7 +132,7 @@ function main()
     shift $((OPTIND - 1))
     [[ ${1-} == '--' ]] && shift
 
-    action="${1}"
+    local action="${1}"
     shift
 
     case "${action}" in
