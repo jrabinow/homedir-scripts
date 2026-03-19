@@ -1,0 +1,49 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use Getopt::Long qw(GetOptions);
+use WWW::Mechanize;
+use URI;
+use URI::QueryParam;
+
+my %ENGINES = (
+    duckduckgo => {
+        url    => 'https://html.duckduckgo.com/html/?q=',
+        filter => qr{/l/\?uddg=},
+        param  => 'uddg',
+    },
+    google => {
+        url    => 'https://www.google.com/search?q=',
+        filter => qr{/url\?q=},
+        param  => 'q',
+    },
+);
+
+sub main {
+    my $engine_name = 'duckduckgo';
+    GetOptions('engine|e=s' => \$engine_name);
+
+    my $engine = $ENGINES{lc($engine_name)}
+        or die "Unknown engine '$engine_name'. Available: " . join(", ", sort keys %ENGINES) . "\n";
+
+    die "Usage: websearch [--engine ENGINE] QUERY...\n" unless @ARGV;
+
+    my $keywords = join "+", @ARGV;
+    $keywords =~ s/ /+/g;
+
+    my $mech = WWW::Mechanize->new();
+    $mech->get($engine->{url} . $keywords);
+
+    my %seen;
+    foreach my $link ($mech->links()) {
+        my $href = $link->url;
+        if ($href =~ $engine->{filter}) {
+            my $result = URI->new($href)->query_param($engine->{param});
+            print "$result\n" if $result && !$seen{$result}++;
+        }
+    }
+}
+
+main();
