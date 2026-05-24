@@ -279,7 +279,7 @@ function main()
     readonly IGNORE_REPOS
 
     # Always clone missing repositories first
-    if [[ "${GITARGS}" == "pull" ]]; then
+    if [[ "${GITARGS}" == "pull" && "$TEAM_NAME" != "UNKNOWN" ]]; then
         clone_any_missing_repos "${TEAM_NAME}"
     fi
 
