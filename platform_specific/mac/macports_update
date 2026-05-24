@@ -167,13 +167,13 @@ function postinstall_tasks()
     # git checks in /opt/local/etc/gitconfig, ~/.gitconfig and
     # ~/.config/git/config by default, but if /opt/local/etc/gitconfig exists,
     # it doesn't read ~/.config/git/config. Let's remove it
-    sudo rm -f /opt/local/etc/gitconfig
+    rm -f /opt/local/etc/gitconfig
 
     if port installed keychain|grep -q 'The following ports are currently installed'; then
         # shellcheck disable=SC2016
         port contents keychain \
             | grep /opt/local/bin \
-            | xargs sudo sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
+            | xargs sed -i -E 's#^keydir="\$\{HOME\}/.keychain"$#keydir="\${HOME}/.local/share/ssh-agent"#'
     fi
 }
 
