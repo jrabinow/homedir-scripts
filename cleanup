@@ -29,10 +29,14 @@ function main()
         .aptitude
         .aria2
         .assaultcube_v1.104
+        .atlas
         .audacity-data
         .bash_sessions
+        .bun
         .cabal
         .cache
+        .cagent
+        .calc_history
         .cargo
         .CFUserTextEncoding
         .cgobanrc
@@ -40,6 +44,8 @@ function main()
         .config/abrt
         .config/asciinema
         .config/binwalk
+        .config/broot
+        .config/cagent
         ".config/chromium/Default/Local Storage"
         .config/cinnamon-session
         .config/clipit
@@ -58,6 +64,7 @@ function main()
         .config/gnome-initial-setup-done
         .config/gnome-session
         .config/goa-1.0
+        .config/godaddy
         ".config/google-chrome/Default/Local Storage"
         .config/google-googletalkplugin
         .config/gtk-2.0
@@ -76,6 +83,7 @@ function main()
         .config/nautilus
         .config/neofetch
         .config/octave
+        .config/opencode
         .config/procps
         .config/qvm-mru-filecopy
         .config/Skype
@@ -124,6 +132,7 @@ function main()
         .golly
         .googleearth
         .grip
+        .groovy
         .gstreamer-0.10
         .gvfs
         .hawtjni
@@ -133,6 +142,7 @@ function main()
         .icons
         .isag.cfg
         .java
+        .javacpp
         .jupyter
         .keras
         .kde
@@ -170,6 +180,7 @@ function main()
         .nautilus
         .nedit
         .nemo
+        .ngrok
         .node-gyp
         .npm
         .nv
@@ -179,6 +190,7 @@ function main()
         .oracle_jre_usage
         .osquery
         .p2
+        .pm2
         .packer.d
         .parallel
         .pdfedit
@@ -256,6 +268,7 @@ function main()
         .ocamldebug_history
         .ophcrackrc
         .pdbhistory
+        .pdfbox.cache
         .pEp_management.db
         .pEp_management.db-shm
         .pEp_management.db-wal
