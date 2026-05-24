@@ -147,6 +147,20 @@ function macports_localchanges()
     done
 }
 
+function port_reclaim_wrapper()
+{
+    expect << 'EOF'
+spawn port reclaim -N
+expect {
+  "\[l\]ist/\[d\]elete/\[K\]eep:" { send "d\r"; exp_continue }
+  "delete all the build directories?" { send "y\r"; exp_continue }
+  "delete everything under the ccache directory?" { send "n\r"; exp_continue }
+  "Would you like to delete them?" { send "y\r"; exp_continue }
+  eof
+}
+EOF
+}
+
 function postinstall_tasks()
 {
     # the default gitconfig shipped with macports overrides my credential helper
@@ -235,7 +249,7 @@ function main()
     macports_localchanges
     port upgrade outdated
     port uninstall leaves inactive rleaves || true
-    port reclaim -N || true
+    port_reclaim_wrapper
     port_cutleaves
     postinstall_tasks
     duplicate_ports_installed
