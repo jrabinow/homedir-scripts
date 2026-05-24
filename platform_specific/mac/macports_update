@@ -7,36 +7,47 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS="kops qt5-qttools qt6-qttools libpsl"
+readonly PORTS="kops qt5-qttools libpsl zig speedtest-cli"
 # these ports change often and won't be fixed soon
-readonly SKIP_PORT_MD5=(qt5-qttools qt6-qttools libpsl)
+readonly SKIP_PORT_MD5=(qt5-qttools libpsl)
+
+readonly LLVM_VERSION=22
+readonly PY_VERSION=3.14
+readonly PY_VERS_NODOT="${PY_VERSION//./}"
 
 function handle_kops()
 {
     portfile="${1}"
     shift
-    handle_depends "${portfile}" mv kubectl1.32 kubectl1.34
+    handle_depends "${portfile}" mv kubectl1.32 kubectl1.35
 }
 
 function handle_qt5-qttools()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" llvm_version 21
-}
-
-function handle_qt6-qttools()
-{
-    portfile="${1}"
-    shift
-    set_param "${portfile}" llvm_version 21
+    set_param "${portfile}" llvm_version "${LLVM_VERSION}"
 }
 
 function handle_libpsl()
 {
     portfile="${1}"
     shift
-    set_param "${portfile}" py_ver 313
+    set_param "${portfile}" py_ver "${PY_VERS_NODOT}"
+}
+
+function handle_speedtest-cli()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" python.default_version "${PY_VERS_NODOT}"
+}
+
+function handle_zig()
+{
+    portfile="${1}"
+    shift
+    set_param "${portfile}" llvm_version "${LLVM_VERSION}"
 }
 # ==============================================================
 # ==============================================================
