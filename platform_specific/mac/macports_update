@@ -84,9 +84,39 @@ function set_param()
     shift
     value="${*}"
     shift
-    (grep -qE "^(\s*set )?${param}(\s+)" "${portfile}" \
-        && sed -i -E "s/^(\s*set )?${param}(\s+).*$/\1${param}\2${value}/g" "${portfile}") \
-        || echo -e "\n${param}   ${value}" >> "${portfile}"
+    # Replace the value of a portfile option. The option's value may live on the
+    # same line (e.g. `llvm_version 22`) or be carried onto following lines via a
+    # Tcl backslash line-continuation (e.g. `python.default_version \` then `313`
+    # on the next line). A plain `sed` over a single line would strip the trailing
+    # backslash and orphan the continuation, producing an invalid portfile, so we
+    # match the whole logical statement and collapse it to `param value`.
+    if grep -qE "^(\s*set )?${param}([[:space:]]|\\\\|$)" "${portfile}"; then
+        awk -v param="${param}" -v value="${value}" '
+            !done && match($0, "^[ \t]*(set[ \t]+)?" param) {
+                head = substr($0, 1, RLENGTH)
+                rest = substr($0, RLENGTH + 1)
+                if (rest ~ /^([ \t]|\\|$)/) {            # whole-word match, not a prefix
+                    if (rest ~ /^[ \t]*\\[ \t]*$/)       # value lives on continuation line(s)
+                        sep = " "
+                    else {                               # value on same line: keep alignment
+                        sep = rest
+                        sub(/[^ \t].*$/, "", sep)
+                        if (sep == "")
+                            sep = " "
+                    }
+                    cur = $0
+                    while (cur ~ /\\[ \t]*$/)
+                        getline cur                      # drop the continuation lines
+                    print head sep value
+                    done = 1
+                    next
+                }
+            }
+            { print }
+        ' "${portfile}" > "${portfile}.tmp" && mv "${portfile}.tmp" "${portfile}"
+    else
+        printf '\n%s   %s\n' "${param}" "${value}" >> "${portfile}"
+    fi
 }
 
 function handle_depends()
@@ -162,8 +192,9 @@ function port_reclaim_wrapper()
 {
     expect << 'EOF'
 spawn port reclaim -N
+#exp_internal 1
 expect {
-  "\[l\]ist/\[d\]elete/\[K\]eep:" { send "d\r"; exp_continue }
+  -exact {[l]ist/[d]elete/[K]eep:} { send "d\r"; exp_continue }
   "delete all the build directories?" { send "y\r"; exp_continue }
   "delete everything under the ccache directory?" { send "n\r"; exp_continue }
   "Would you like to delete them?" { send "y\r"; exp_continue }
