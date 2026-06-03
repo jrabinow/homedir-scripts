@@ -28,10 +28,11 @@ function main()
         America/Los_Angeles
         America/Chicago
         America/New_York
+        America/Bogota
+        America/Sao_Paulo
         Europe/Paris
         Europe/Warsaw
         Asia/Kolkata
-        Asia/Tel_Aviv
         UTC
     )
 
