@@ -41,7 +41,9 @@ function monitor_and_skip_ads()
         track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
         if [[ ${track_id} =~ "spotify:ad:" || (${track_id} == "" && $(is_spotify_running)) ]]; then
             pkill -9 -i spotify
-            sleep 1
+            # pkill -9 leaves the Apple Events subsystem in a broken state.
+            # Poll until osascript is functional again before proceeding.
+            until osascript -e 'return 0' &>/dev/null 2>&1; do sleep 0.5; done
             spotify_launchnplay
             track_id="$(timeout 1 osascript -e 'tell application "spotify" to id of current track' || echo "")"
             if [[ ${track_id} =~ "spotify:ad:" || ${track_id} == "" || ${track_id} == "${old_track_id}" ]]; then
@@ -49,6 +51,7 @@ function monitor_and_skip_ads()
             fi
             spotify_set_volume "${volume}"
             osascript -e 'tell application "spotify" to play'
+            sleep 5
         fi
         old_track_id="${track_id}"
         sleep 1
@@ -86,25 +89,20 @@ function is_audio_adblocker_running()
 
 function spotify_launchnplay()
 {
-    retry_count=3
-    while [ "${retry_count}" -gt 0 ]; do
-        # 196:204: execution error: Can’t get application "MSTeams". (-1728)
-        # ps: Invalid process id: osascript failure
-        #
-        # # fuck MS teams
-        # # Also fuck intellij/android studio
-        #
-        # shellcheck disable=SC2015
-        osascript -e 'tell application "System Events" to set foregroundApp to name of first application process whose frontmost is true and name is not "MSTeams" and name is not "studio" and name is not "idea"' \
-            -e 'tell application "Spotify" to launch' \
-            -e 'delay 0.5' \
-            -e 'tell application foregroundApp to activate' \
-            -e 'delay 2' \
-            -e 'tell application "spotify" to play' \
-            && break \
-            || bell -m 'osascript failure'
-        retry_count=$((retry_count - 1))
-    done
+    local foreground_app
+    foreground_app="$(osascript \
+        -e 'tell application "System Events" to name of first application process whose frontmost is true and name is not "MSTeams" and name is not "studio" and name is not "idea"' \
+        2>/dev/null || echo "")"
+
+    osascript -e 'tell application "Spotify" to launch'
+    sleep 0.5
+
+    if [[ -n "${foreground_app}" && "${foreground_app}" != "Spotify" ]]; then
+        osascript -e "tell application \"${foreground_app}\" to activate"
+    fi
+
+    sleep 2
+    osascript -e 'tell application "spotify" to play'
 }
 
 function main()
