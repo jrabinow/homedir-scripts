@@ -1,0 +1,836 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+webdrop [OPTIONS...] [FILE...]
+
+Serve a phone-friendly web page on the LAN for moving files between a mobile
+device and this machine.
+
+Uploads land in a per-run directory under ~/Downloads (or under the current
+directory when that doesn't exist), created when the first file arrives. Any
+FILE given on the command line is offered to the browser for download;
+directories are expanded recursively.
+
+    webdrop                       # receive documents, photos, anything
+    webdrop report.pdf notes.txt  # also hand those two files to the phone
+    webdrop -t                    # require a random token in the URL
+
+The LAN URL is printed at startup, and drawn as a QR code when qrencode is
+installed — scanning the terminal beats typing an IP on a phone keyboard.
+
+Traffic is plain HTTP and, without -t, unauthenticated: everyone on the network
+can read the offered files and write into the save directory. That is the right
+trade at home and the wrong one on shared wifi, where -t makes the URL
+unguessable and the QR code keeps it free to enter.
+
+Python 3 standard library only.
+"""
+
+import argparse
+import errno
+import json
+import logging
+import mimetypes
+import os
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.parse
+import zipfile
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+LOG = logging.getLogger()
+LOG.setLevel("INFO")
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+LOG.addHandler(ch)
+
+DEFAULT_PORT = 8420
+CHUNK = 256 * 1024
+# Anything longer than this in a multipart header is a client bug or an attack.
+MAX_HEADER_BYTES = 16 * 1024
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>webdrop</title>
+<style>
+:root {
+  --bg: #14161a; --card: #1e2228; --line: #2e343d; --fg: #e8eaed;
+  --muted: #9aa3ad; --accent: #4c9aff; --ok: #35c07a; --err: #ff6b6b;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --line: #dfe2e7; --fg: #1b1f24;
+    --muted: #5d6772; --accent: #0b6bcb; --ok: #1e8e57; --err: #c0392b;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  margin: 0; padding: 1rem 1rem 3rem; background: var(--bg); color: var(--fg);
+  font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-width: 46rem; margin-inline: auto;
+}
+h1 { font-size: 1.35rem; margin: .5rem 0 1rem; }
+h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+     color: var(--muted); margin: 1.75rem 0 .6rem; }
+.card { background: var(--card); border: 1px solid var(--line);
+        border-radius: 14px; padding: 1rem; }
+.buttons { display: grid; gap: .6rem; grid-template-columns: 1fr 1fr; }
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: .5rem;
+  position: relative; min-height: 3.25rem; padding: .5rem 1rem;
+  border-radius: 12px; cursor: pointer;
+  background: var(--accent); color: #fff; font-weight: 600; border: 0;
+  font-size: 1rem; text-decoration: none; user-select: none;
+}
+.btn.wide { grid-column: 1 / -1; }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 500; }
+.btn.small { min-height: 2.75rem; font-size: .9rem; }
+.btn:active { filter: brightness(.9); }
+.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn input[type=file] { position: absolute; width: 1px; height: 1px;
+                        opacity: 0; pointer-events: none; }
+#drop { margin-top: .75rem; padding: 1.1rem; text-align: center; color: var(--muted);
+        border: 2px dashed var(--line); border-radius: 12px; font-size: .9rem; }
+#drop.over { border-color: var(--accent); color: var(--accent); }
+ul { list-style: none; margin: 0; padding: 0; }
+li.item { display: flex; align-items: center; gap: .75rem; padding: .6rem 0;
+          border-top: 1px solid var(--line); }
+li.item:first-child { border-top: 0; }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; }
+.name a { color: var(--fg); text-decoration: none; }
+.name a:active { color: var(--accent); }
+.sub { display: block; font-size: .78rem; color: var(--muted); }
+.state { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+.state.ok { color: var(--ok); }
+.state.err { color: var(--err); }
+.bar { height: 4px; border-radius: 2px; background: var(--line); margin-top: .35rem;
+       overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent);
+           transition: width .15s linear; }
+.empty { color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>webdrop</h1>
+
+<h2>Send</h2>
+<div class="card">
+  <div class="buttons">
+    <label class="btn wide">Choose files
+      <input type="file" multiple id="pick-any">
+    </label>
+    <!-- Only capture earns a second button: it opens the camera directly
+         instead of a picker. An accept= filter would not, since the plain
+         picker already reaches the photo library on both iOS and Android. -->
+    <label class="btn ghost small wide">Camera
+      <input type="file" accept="image/*" capture="environment" id="pick-cam">
+    </label>
+  </div>
+  <div id="drop">or drop files here</div>
+  <ul id="queue"></ul>
+</div>
+
+<div id="downloads"></div>
+
+<script>
+var DATA = __DATA__;
+
+function human(n) {
+  var u = ["B", "KB", "MB", "GB", "TB"], i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(1)) + " " + u[i];
+}
+
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function renderDownloads() {
+  var box = document.getElementById("downloads");
+  box.textContent = "";
+  if (!DATA.files.length) return;
+  var h = el("h2", null, "Receive");
+  var card = el("div", "card");
+  var ul = el("ul");
+  DATA.files.forEach(function (f) {
+    var li = el("li", "item");
+    var name = el("div", "name");
+    var a = el("a", null, f.name);
+    a.href = f.url;
+    a.setAttribute("download", f.name);
+    name.appendChild(a);
+    name.appendChild(el("span", "sub", human(f.size)));
+    li.appendChild(name);
+    ul.appendChild(li);
+  });
+  card.appendChild(ul);
+  if (DATA.files.length > 1) {
+    var all = el("a", "btn ghost wide", "Download all (zip)");
+    all.href = "zip";
+    all.style.marginTop = ".75rem";
+    card.appendChild(all);
+  }
+  box.appendChild(h);
+  box.appendChild(card);
+}
+
+// One request per file, sent one at a time: each row gets its own progress and
+// its own failure, so a stalled video neither hides the rest nor takes them
+// down with it, and a retry costs only that file.
+var queue = [], busy = false;
+
+function addFiles(files) {
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var li = el("li", "item");
+    var name = el("div", "name", f.name || "upload");
+    var sub = el("span", "sub", human(f.size));
+    var bar = el("div", "bar");
+    var fill = el("i");
+    bar.appendChild(fill);
+    name.appendChild(sub);
+    name.appendChild(bar);
+    var state = el("div", "state", "waiting");
+    li.appendChild(name);
+    li.appendChild(state);
+    document.getElementById("queue").appendChild(li);
+    queue.push({ file: f, fill: fill, state: state, sub: sub });
+  }
+  pump();
+}
+
+function pump() {
+  if (busy || !queue.length) return;
+  busy = true;
+  var job = queue.shift();
+  var fd = new FormData();
+  fd.append("file", job.file, job.file.name || "upload");
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "upload");
+  xhr.upload.onprogress = function (e) {
+    if (!e.lengthComputable) return;
+    job.fill.style.width = (100 * e.loaded / e.total) + "%";
+    job.state.textContent = Math.round(100 * e.loaded / e.total) + "%";
+  };
+  xhr.onload = function () {
+    busy = false;
+    var saved = null;
+    try { saved = JSON.parse(xhr.responseText); } catch (err) { /* keep raw status */ }
+    if (xhr.status === 200 && saved && saved.saved && saved.saved.length) {
+      job.fill.style.width = "100%";
+      job.state.className = "state ok";
+      job.state.textContent = "saved";
+      job.sub.textContent = human(job.file.size) + " \\u2192 " + saved.saved[0];
+    } else {
+      job.state.className = "state err";
+      job.state.textContent = (saved && saved.error) || ("failed " + xhr.status);
+    }
+    pump();
+  };
+  xhr.onerror = function () {
+    busy = false;
+    job.state.className = "state err";
+    job.state.textContent = "network error";
+    pump();
+  };
+  xhr.send(fd);
+}
+
+["pick-cam", "pick-any"].forEach(function (id) {
+  document.getElementById(id).addEventListener("change", function (e) {
+    addFiles(e.target.files);
+    e.target.value = "";
+  });
+});
+
+var drop = document.getElementById("drop");
+["dragenter", "dragover"].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); });
+});
+["dragleave", "drop"].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+});
+drop.addEventListener("drop", function (e) {
+  if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+window.addEventListener("dragover", function (e) { e.preventDefault(); });
+window.addEventListener("drop", function (e) { e.preventDefault(); });
+
+renderDownloads();
+</script>
+</body>
+</html>
+"""
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="enable debug logging information",
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help="port to listen on (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-b",
+        "--bind",
+        default="0.0.0.0",
+        help="address to bind (default: %(default)s, i.e. reachable from the LAN)",
+    )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        help="parent for this run's upload directory "
+        "(default: ~/Downloads, else the current directory)",
+    )
+    parser.add_argument(
+        "-t",
+        "--token",
+        nargs="?",
+        const=secrets.token_urlsafe(6),
+        default="",
+        metavar="TOKEN",
+        help="require a secret path segment in the URL; generated when given no value",
+    )
+    parser.add_argument(
+        "files",
+        nargs="*",
+        help="offer these files for download; directories are expanded recursively",
+    )
+    args = parser.parse_args()
+    if args.debug:
+        LOG.setLevel(logging.DEBUG)
+    return args
+
+
+def pick_parent(override):
+    """The directory this run's uploads will be collected under."""
+    if override:
+        parent = os.path.abspath(os.path.expanduser(override))
+        if not os.path.isdir(parent):
+            LOG.error("no such directory: %s", parent)
+            sys.exit(1)
+    else:
+        downloads = os.path.expanduser("~/Downloads")
+        parent = downloads if os.path.isdir(downloads) else os.getcwd()
+    if not os.access(parent, os.W_OK):
+        LOG.error("directory is not writable: %s", parent)
+        sys.exit(1)
+    return parent
+
+
+class SessionDir:
+    """Uploads land in one directory per run, created on the first arrival.
+
+    Naming a file after a collision ("report-1.pdf") tells the uploader that
+    "report.pdf" was already there, which against a long-lived directory like
+    ~/Downloads answers "does this file exist?" for anyone on the network. A
+    per-run directory means collisions can only be with this run's own uploads,
+    which whoever is holding the phone already knows about."""
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.path = os.path.join(
+            parent, "webdrop-%s-%s" % (time.strftime("%Y-%m-%d"), secrets.token_hex(2))
+        )
+        self._lock = threading.Lock()
+        self._made = False
+
+    def ensure(self):
+        with self._lock:
+            if not self._made:
+                os.makedirs(self.path, exist_ok=True)
+                LOG.info("created %s", self.path)
+                self._made = True
+        return self.path
+
+
+def collect_offered(paths):
+    """Expand the command line into a flat list of (display name, absolute path)."""
+    offered = []
+    for path in paths:
+        full = os.path.abspath(os.path.expanduser(path))
+        if os.path.isdir(full):
+            root_name = os.path.basename(full.rstrip(os.sep)) or "files"
+            for dirpath, _, filenames in os.walk(full):
+                for filename in sorted(filenames):
+                    child = os.path.join(dirpath, filename)
+                    rel = os.path.relpath(child, full)
+                    offered.append((os.path.join(root_name, rel), child))
+        elif os.path.isfile(full):
+            offered.append((os.path.basename(full), full))
+        else:
+            LOG.error("not a file or directory: %s", path)
+            sys.exit(1)
+    return offered
+
+
+def lan_address():
+    """Best-effort local address the phone can actually reach."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # No packet leaves the machine; this only asks the routing table.
+        sock.connect(("8.8.8.8", 53))
+        return sock.getsockname()[0]
+    except OSError:
+        return socket.gethostbyname(socket.gethostname())
+    finally:
+        sock.close()
+
+
+def print_qr(url):
+    if not shutil.which("qrencode"):
+        return
+    try:
+        subprocess.run(["qrencode", "-t", "ANSIUTF8", "-m", "2", url], check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        LOG.debug("qrencode failed: %s", exc)
+
+
+def safe_filename(raw):
+    """Reduce a client-supplied name to a single harmless path component."""
+    name = os.path.basename((raw or "").replace("\\", "/").strip())
+    name = re.sub(r"[\x00-\x1f\x7f]", "", name)
+    if name in ("", ".", ".."):
+        name = "upload-%s" % time.strftime("%Y%m%d-%H%M%S")
+    return name[:200]
+
+
+def create_unique(outdir, name):
+    """Atomically reserve a free path near outdir/name. Returns (fd, path).
+
+    iOS labels every camera capture image.jpg, so a phone emptying its camera
+    roll is a stream of identical names; O_EXCL both renames them apart and
+    keeps parallel uploads from landing on the same path."""
+    stem, ext = os.path.splitext(name)
+    candidate = name
+    counter = 1
+    while True:
+        path = os.path.join(outdir, candidate)
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            return fd, path
+        except FileExistsError:
+            candidate = "%s-%d%s" % (stem, counter, ext)
+            counter += 1
+            if counter > 10000:
+                raise
+
+
+class MultipartError(ValueError):
+    pass
+
+
+# The stdlib stopped shipping a multipart parser when cgi was removed in 3.13,
+# and the email package wants the whole body in memory. A phone uploading 4K
+# video would make that a resident gigabyte, so the parser below reads the
+# socket in fixed chunks and writes straight through to the file descriptor.
+
+
+class BodyReader:
+    """Buffered reader over a request body of known length."""
+
+    def __init__(self, fp, length):
+        self.fp = fp
+        self.remaining = length
+        self.buf = b""
+
+    def _fill(self, want):
+        while len(self.buf) < want and self.remaining > 0:
+            chunk = self.fp.read(min(CHUNK, self.remaining))
+            if not chunk:
+                self.remaining = 0
+                break
+            self.remaining -= len(chunk)
+            self.buf += chunk
+        return len(self.buf)
+
+    def read_exact(self, count):
+        if self._fill(count) < count:
+            raise MultipartError("body ended early")
+        out, self.buf = self.buf[:count], self.buf[count:]
+        return out
+
+    def read_line(self):
+        while b"\n" not in self.buf:
+            before = len(self.buf)
+            if before > MAX_HEADER_BYTES:
+                raise MultipartError("multipart header line too long")
+            if self._fill(before + CHUNK) == before:
+                break
+        idx = self.buf.find(b"\n")
+        if idx < 0:
+            out, self.buf = self.buf, b""
+            return out
+        out, self.buf = self.buf[: idx + 1], self.buf[idx + 1 :]
+        return out
+
+    def stream_until(self, sep, write):
+        """Write body bytes to `write` until `sep`, which is consumed."""
+        keep = len(sep) - 1
+        while True:
+            self._fill(len(sep) + CHUNK)
+            idx = self.buf.find(sep)
+            if idx >= 0:
+                write(self.buf[:idx])
+                self.buf = self.buf[idx + len(sep) :]
+                return
+            if self.remaining <= 0:
+                raise MultipartError("unterminated multipart part")
+            if len(self.buf) > keep:
+                write(self.buf[:-keep])
+                self.buf = self.buf[-keep:]
+
+
+def boundary_from(content_type):
+    match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type or "", re.I)
+    if not match:
+        raise MultipartError("missing multipart boundary")
+    return (match.group(1) or match.group(2)).strip().encode("latin-1")
+
+
+def filename_from(disposition):
+    match = re.search(r"filename\*\s*=\s*([^;]+)", disposition, re.I)
+    if match:
+        value = match.group(1).strip()
+        _, _, encoded = value.rpartition("'")
+        return urllib.parse.unquote(encoded)
+    match = re.search(r'filename\s*=\s*"((?:[^"\\]|\\.)*)"', disposition, re.I)
+    if match:
+        return match.group(1).replace('\\"', '"')
+    match = re.search(r"filename\s*=\s*([^;]+)", disposition, re.I)
+    return match.group(1).strip() if match else ""
+
+
+def receive_multipart(reader, boundary, outdir):
+    """Stream every file part straight to disk. Returns the saved basenames."""
+    delimiter = b"--" + boundary
+    first = reader.read_line().rstrip(b"\r\n")
+    if first != delimiter:
+        raise MultipartError("body does not start with the multipart boundary")
+
+    saved = []
+    while True:
+        headers = {}
+        while True:
+            line = reader.read_line()
+            if line in (b"\r\n", b"\n", b""):
+                break
+            key, _, value = line.decode("utf-8", "replace").partition(":")
+            headers[key.strip().lower()] = value.strip()
+
+        disposition = headers.get("content-disposition", "")
+        raw_name = filename_from(disposition)
+        terminator = b"\r\n" + delimiter
+
+        if raw_name:
+            name = safe_filename(raw_name)
+            fd, path = create_unique(outdir, name)
+            written = 0
+
+            def write(data, fd=fd):
+                nonlocal written
+                if data:
+                    os.write(fd, data)
+                    written += len(data)
+
+            try:
+                reader.stream_until(terminator, write)
+            except Exception:
+                os.close(fd)
+                os.unlink(path)
+                raise
+            os.close(fd)
+            os.chmod(path, 0o644)
+            LOG.info("saved %s (%d bytes)", path, written)
+            saved.append(os.path.basename(path))
+        else:
+            # A non-file field: drain it, we have no use for its value.
+            reader.stream_until(terminator, lambda data: None)
+
+        tail = reader.read_exact(2)
+        if tail == b"--":
+            return saved
+        if tail != b"\r\n":
+            raise MultipartError("malformed multipart delimiter")
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    # Naming the software points a reader at this source, and with it the
+    # endpoint list and the default save directory. Stock error pages identify
+    # http.server just as plainly, so both are replaced with the bare minimum.
+    error_message_format = "%(code)d\n"
+    error_content_type = "text/plain; charset=utf-8"
+
+    def send_header(self, keyword, value):
+        if keyword.lower() == "server":
+            return
+        super().send_header(keyword, value)
+
+    # Set by serve()
+    session = None
+    offered = []
+    prefix = ""
+    head_only = False
+
+    def log_message(self, fmt, *fmt_args):
+        LOG.debug("%s - %s", self.address_string(), fmt % fmt_args)
+
+    def route(self):
+        """Strip the token prefix. Returns the remaining path, or None if unauthorized."""
+        path = urllib.parse.urlparse(self.path).path
+        if not self.prefix:
+            return path
+        if path == self.prefix:
+            return "redirect"
+        if path.startswith(self.prefix + "/"):
+            return path[len(self.prefix) :]
+        return None
+
+    def send_bytes(self, payload, content_type, status=HTTPStatus.OK, extra=None):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        if not self.head_only:
+            self.wfile.write(payload)
+
+    def send_json(self, obj, status=HTTPStatus.OK):
+        self.send_bytes(json.dumps(obj).encode("utf-8"), "application/json", status)
+
+    def fail(self, status, message):
+        self.send_bytes(
+            ("%s\n" % message).encode("utf-8"), "text/plain; charset=utf-8", status
+        )
+
+    def do_HEAD(self):
+        self.do_GET(head_only=True)
+
+    def do_GET(self, head_only=False):
+        self.head_only = head_only
+        path = self.route()
+        if path is None:
+            self.fail(HTTPStatus.NOT_FOUND, "not found")
+            return
+        if path == "redirect":
+            self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+            self.send_header("Location", self.prefix + "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
+        if path in ("/", "/index.html"):
+            self.send_page()
+        elif path.startswith("/dl/"):
+            self.send_offered(path[len("/dl/") :])
+        elif path == "/zip":
+            self.send_zip()
+        elif path == "/favicon.ico":
+            self.send_bytes(b"", "image/x-icon", HTTPStatus.NO_CONTENT)
+        else:
+            self.fail(HTTPStatus.NOT_FOUND, "not found")
+
+    def do_POST(self):
+        self.head_only = False
+        path = self.route()
+        if path is None or path != "/upload":
+            self.fail(HTTPStatus.NOT_FOUND, "not found")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self.fail(HTTPStatus.LENGTH_REQUIRED, "Content-Length required")
+            return
+
+        try:
+            boundary = boundary_from(self.headers.get("Content-Type", ""))
+            reader = BodyReader(self.rfile, length)
+            saved = receive_multipart(reader, boundary, self.session.ensure())
+        except MultipartError as exc:
+            LOG.warning("bad upload from %s: %s", self.address_string(), exc)
+            self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            self.close_connection = True
+            return
+        except ConnectionError:
+            # The upload died with the connection; there is nobody left to answer.
+            LOG.info("upload from %s was interrupted", self.address_string())
+            self.close_connection = True
+            return
+        except OSError as exc:
+            LOG.error("could not save upload: %s", exc)
+            self.send_json({"error": "could not save: %s" % exc.strerror},
+                           HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.close_connection = True
+            return
+
+        if not saved:
+            self.send_json({"error": "no file in request"}, HTTPStatus.BAD_REQUEST)
+            return
+        self.send_json({"saved": saved})
+
+    def send_page(self):
+        data = {
+            "files": [
+                {
+                    "name": name,
+                    "size": os.path.getsize(path) if os.path.exists(path) else 0,
+                    "url": "dl/%d" % index,
+                }
+                for index, (name, path) in enumerate(self.offered)
+            ],
+        }
+        page = PAGE.replace("__DATA__", json.dumps(data))
+        self.send_bytes(page.encode("utf-8"), "text/html; charset=utf-8")
+
+    def send_offered(self, raw_index):
+        """Serve one of the files named on the command line.
+
+        The URL carries an index into that list rather than a path, so no
+        string from the network is ever resolved against the filesystem."""
+        try:
+            name, path = self.offered[int(raw_index)]
+        except (ValueError, IndexError):
+            self.fail(HTTPStatus.NOT_FOUND, "no such file")
+            return
+        try:
+            size = os.path.getsize(path)
+            handle = open(path, "rb")
+        except OSError as exc:
+            self.fail(HTTPStatus.NOT_FOUND, "cannot read file: %s" % exc.strerror)
+            return
+
+        basename = os.path.basename(name)
+        guessed = mimetypes.guess_type(basename)[0] or "application/octet-stream"
+        with handle:
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", guessed)
+            self.send_header("Content-Length", str(size))
+            # Plain filename for clients that only read the ASCII form,
+            # filename* for everything that speaks RFC 5987.
+            ascii_name = (
+                basename.encode("ascii", "replace").decode("ascii").replace('"', "'")
+            )
+            self.send_header(
+                "Content-Disposition",
+                'attachment; filename="%s"; filename*=UTF-8\'\'%s'
+                % (ascii_name, urllib.parse.quote(basename)),
+            )
+            self.end_headers()
+            if not self.head_only:
+                shutil.copyfileobj(handle, self.wfile, CHUNK)
+        LOG.info("sent %s to %s", path, self.address_string())
+
+    def send_zip(self):
+        if not self.offered:
+            self.fail(HTTPStatus.NOT_FOUND, "nothing to download")
+            return
+        # Spooled so a big set of files never has to fit in memory.
+        with tempfile.SpooledTemporaryFile(max_size=32 * 1024 * 1024) as spool:
+            # Stored, not deflated: the usual payload is already-compressed
+            # media or documents, where the CPU buys nothing.
+            with zipfile.ZipFile(spool, "w", zipfile.ZIP_STORED) as archive:
+                for name, path in self.offered:
+                    archive.write(path, arcname=name)
+            size = spool.tell()
+            spool.seek(0)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(size))
+            self.send_header(
+                "Content-Disposition", 'attachment; filename="webdrop.zip"'
+            )
+            self.end_headers()
+            if not self.head_only:
+                shutil.copyfileobj(spool, self.wfile, CHUNK)
+        LOG.info("sent zip of %d files to %s", len(self.offered), self.address_string())
+
+
+class Server(ThreadingHTTPServer):
+    # Threaded so a long upload doesn't wedge the page for a second device, and
+    # daemonised so Ctrl-C ends the run without waiting on an idle keep-alive.
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        """A phone that sleeps, backgrounds the tab, or cancels a download drops
+        its connection mid-request. That is routine, so it gets a debug line
+        instead of a traceback; anything else is a real bug and still gets one."""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionError, TimeoutError)):
+            LOG.debug("%s went away: %s", client_address[0], exc)
+            return
+        LOG.exception("error handling request from %s", client_address[0])
+
+
+def serve(args, session, offered):
+    Handler.session = session
+    Handler.offered = offered
+    Handler.prefix = "/" + args.token.strip("/") if args.token else ""
+
+    try:
+        httpd = Server((args.bind, args.port), Handler)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            LOG.error("port %d is already in use, pick another with -p", args.port)
+            sys.exit(1)
+        raise
+
+    url = "http://%s:%d%s/" % (lan_address(), args.port, Handler.prefix)
+    print_qr(url)
+    LOG.info("serving %s", url)
+    LOG.info("uploads go to %s", session.path)
+    if offered:
+        LOG.info("offering %d file(s) for download", len(offered))
+    if not args.token:
+        LOG.warning("no token set: anyone on this network can upload and download")
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        LOG.info("shutting down")
+    finally:
+        httpd.server_close()
+
+
+def main():
+    args = parse_args()
+    mimetypes.init()
+    session = SessionDir(pick_parent(args.outdir))
+    offered = collect_offered(args.files)
+    serve(args, session, offered)
+
+
+if __name__ == "__main__":
+    main()
