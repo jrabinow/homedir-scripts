@@ -84,9 +84,14 @@ function set_param()
     # on the next line). A plain `sed` over a single line would strip the trailing
     # backslash and orphan the continuation, producing an invalid portfile, so we
     # match the whole logical statement and collapse it to `param value`.
+    # Every assignment is rewritten: a portfile may set the option in several
+    # branches (e.g. qt5 sets llvm_version per macOS version), and the one that
+    # applies here is not necessarily the first.
+    # The rewritten bytes go back over the portfile in place, preserving the owner
+    # and mode rsync gave it (macports:wheel 0644).
     if grep -qE "^(\s*set )?${param}([[:space:]]|\\\\|$)" "${portfile}"; then
         awk -v param="${param}" -v value="${value}" '
-            !done && match($0, "^[ \t]*(set[ \t]+)?" param) {
+            match($0, "^[ \t]*(set[ \t]+)?" param) {
                 head = substr($0, 1, RLENGTH)
                 rest = substr($0, RLENGTH + 1)
                 if (rest ~ /^([ \t]|\\|$)/) {            # whole-word match, not a prefix
@@ -102,12 +107,13 @@ function set_param()
                     while (cur ~ /\\[ \t]*$/)
                         getline cur                      # drop the continuation lines
                     print head sep value
-                    done = 1
                     next
                 }
             }
             { print }
-        ' "${portfile}" > "${portfile}.tmp" && mv "${portfile}.tmp" "${portfile}"
+        ' "${portfile}" > "${portfile}.tmp" \
+            && cat "${portfile}.tmp" > "${portfile}" \
+            && rm -f "${portfile}.tmp"
     else
         printf '\n%s   %s\n' "${param}" "${value}" >> "${portfile}"
     fi
