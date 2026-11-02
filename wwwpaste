@@ -68,9 +68,9 @@ function pasters_del()
 # https://paste.c-net.org
 function cnet_get()
 {
-    local url="${1}"
+    local id="${1##https://paste.c-net.org/}"
     shift
-    curl -s "${url}"
+    curl -s "https://paste.c-net.org/${id}"
 }
 
 function cnet_post()
