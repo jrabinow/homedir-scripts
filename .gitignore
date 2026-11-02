@@ -3,7 +3,7 @@
 /configdiff
 /cronenborg
 /imgcat
-/loggrep
+/logsearch
 /luksmount
 /macports_pybump
 /macports_update
@@ -17,3 +17,4 @@ banner
 exitcodes
 cpulimit
 /__pycache__
+/.claude
