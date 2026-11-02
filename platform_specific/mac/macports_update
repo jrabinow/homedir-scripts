@@ -7,11 +7,11 @@
 # ======================= PORT SPECIFIC ========================
 # ==============================================================
 #
-readonly PORTS="qt5-qttools qt6-qttools libpsl speedtest-cli"
+readonly PORTS="qt5-qttools qt6-qttools"
 # these ports change often and won't be fixed soon
-readonly SKIP_PORT_MD5=(qt5-qttools libpsl)
+readonly SKIP_PORT_MD5=(qt5-qttools qt6-qttools)
 
-readonly LLVM_VERSION=22
+readonly LLVM_VERSION=23
 readonly PY_VERSION=3.14
 readonly PY_VERS_NODOT="${PY_VERSION//./}"
 
@@ -27,20 +27,6 @@ function handle_qt6-qttools()
     portfile="${1}"
     shift
     set_param "${portfile}" llvm_version "${LLVM_VERSION}"
-}
-
-function handle_libpsl()
-{
-    portfile="${1}"
-    shift
-    set_param "${portfile}" py_ver "${PY_VERS_NODOT}"
-}
-
-function handle_speedtest-cli()
-{
-    portfile="${1}"
-    shift
-    set_param "${portfile}" python.default_version "${PY_VERS_NODOT}"
 }
 
 # ==============================================================
