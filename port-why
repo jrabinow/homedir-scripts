@@ -1,0 +1,471 @@
+#!/opt/local/bin/port-tclsh
+# port-why -- explain why `port upgrade outdated` would newly install a port.
+#
+#   port -q outdated | port-why [--deep|--shallow] [-v] TARGET
+#   port-why [--deep|--shallow] [-v] TARGET OUTDATED_LIST_FILE
+#
+# The list can be `port outdated`, `port -q outdated` or `port echo outdated`
+# output, or bare names; only the first word of each line is used.
+#
+# Mirrors macports::_plan_upgrade / _upgrade_dependencies in MacPorts base:
+#  - an installed port is opened with variants.conf merged with the variants
+#    it was originally requested with (registry requested_variants), and a
+#    replaced_by in the index is followed to the replacement
+#  - a port that isn't installed is opened with variants.conf only
+#  - depends_lib/run are always followed; depends_fetch/extract/patch/build
+#    only when that port will be built from source (no binary archive for it,
+#    or buildfromsource always / port -s)
+#  - a same-version port that upgrade force-rebuilds (built for another OS
+#    version, against the wrong C++ stdlib, or an epoch bump) follows ALL its
+#    dependency types, without an archive check, exactly as upgrade does
+#  - a depspec already satisfied (active port, or a path:/bin:/lib: file from
+#    another port or the OS) is not a new install and is not followed
+#
+# Phase 1 expands only outdated ports and ports that would be NEWLY installed:
+# about one Portfile evaluation per outdated port plus one per new port.
+# `port upgrade` also walks already-installed dependencies (an up-to-date port
+# whose Portfile gained a dep without a revbump pulls that dep in), so if
+# TARGET isn't reached in phase 1, or with --deep, phase 2 evaluates installed
+# dependencies too: one Portfile evaluation per installed port in the
+# dependency closure of the outdated ports. --shallow skips phase 2.
+# -v prints per-port timings on stderr.
+#
+# Exit status: 0 = paths found, 1 = TARGET not reached, 2 = usage/input error.
+#
+# Checked against `port -y upgrade outdated` on MacPorts base master
+# (2.12.99, Oct 2026, Tcl 9) built on Linux; the upgrade logic it mirrors is
+# identical in release 2.12.7 (Tcl 8.6), and it uses no Tcl-9-only commands. Uses MacPorts-private procs
+# (_mportispresent, _get_dep_port, _archive_available, _mportkey) that may
+# change between releases. Not modelled: +universal propagation to deps,
+# rev-upgrade rebuilds, and variants given on the `port upgrade` command line.
+
+package require macports
+
+proc usage {} {
+    return "usage: port -q outdated | port-why \[--deep|--shallow\] \[-v\] TARGET\n       port-why \[--deep|--shallow\] \[-v\] TARGET OUTDATED_LIST_FILE"
+}
+
+set deep 0
+set shallow 0
+set verbose 0
+set pos {}
+foreach a $argv {
+    switch -- $a {
+        --deep {set deep 1}
+        --shallow {set shallow 1}
+        -v - --verbose {set verbose 1}
+        -h - --help {puts [usage]; exit 0}
+        default {lappend pos $a}
+    }
+}
+if {[llength $pos] < 1 || [llength $pos] > 2 || ($deep && $shallow)} {puts stderr [usage]; exit 2}
+set target [lindex $pos 0]
+set chan stdin
+if {[llength $pos] == 2 && [catch {open [lindex $pos 1] r} chan]} {
+    puts stderr $chan; exit 2
+}
+# with no list file, the list comes from a pipe; a terminal would just wait for EOF
+if {[llength $pos] == 1 && ![catch {exec test -t 0 <@stdin}]} {
+    puts stderr "port-why: reading the outdated list from stdin, which is a terminal;\
+                 pipe it in (port -q outdated | port-why $target) or pass a file"
+    puts stderr [usage]; exit 2
+}
+
+set outdated {}
+while {[gets $chan line] >= 0} {
+    set line [string trim $line]
+    if {[regexp {^(The following|No installed ports)} $line]} continue
+    if {[regexp {^([A-Za-z0-9][-A-Za-z0-9_.+]*)(\s|$)} $line -> w]} {lappend outdated $w}
+}
+if {![llength $outdated]} {puts stderr "no outdated ports on input"; exit 2}
+
+if {[catch {mportinit "" "" ""} err]} {puts stderr "mportinit failed: $err"; exit 2}
+proc finish {code} {catch mportshutdown; exit $code}
+
+set t0 [clock milliseconds]
+set gvars [array get macports::global_variations]
+set gopts [array get macports::global_options]
+set binary_types {depends_lib depends_run}
+set source_types {depends_fetch depends_extract depends_patch depends_build}
+
+if {[catch {mportlookup $target} res] || [llength $res] < 2} {
+    puts stderr "$target: not found in the ports index"; finish 2
+}
+set target [lindex $res 0]
+set tl [string tolower $target]
+if {[registry::entry imaged $target] ne ""} {
+    puts stderr "$target is already installed, so upgrade won't newly install it (port dependents $target works for it)"
+    finish 2
+}
+
+set name_of  [dict create]  ;# lname -> display name
+set ann      [dict create]  ;# lname -> annotations
+set rev      [dict create]  ;# child lname -> list of {parent label}
+set seen     [dict create]  ;# lname -> 1 once queued
+set roots    [dict create]
+set newq {}; set newi 0      ;# would be newly installed: always expanded
+set deferred {}; set defi 0  ;# installed, not outdated: expanded in phase 2
+set opened 0
+set opened_p1 0
+set archive_checks 0
+set archive_ms 0
+set phase 1
+set found 0
+
+proc vlog {msg} {if {$::verbose} {puts stderr $msg}}
+
+proc parse_variants {s} {
+    set d [dict create]
+    foreach {- sign var} [regexp -all -inline {([-+])([^-+]+)} $s] {dict set d $var $sign}
+    return $d
+}
+
+proc note {l text} {
+    global ann
+    if {![dict exists $ann $l] || $text ni [dict get $ann $l]} {dict lappend ann $l $text}
+}
+
+proc queue {l name k} {
+    global seen name_of newq deferred tl
+    if {[dict exists $seen $l]} return
+    dict set seen $l 1
+    dict set name_of $l $name
+    if {$l eq $tl} return  ;# no need to look below the target
+    if {$k eq "new"} {lappend newq $l; note $l new} else {lappend deferred $l}
+}
+
+proc add_edge {parent child label} {
+    global rev tl found
+    set e [list $parent $label]
+    if {![dict exists $rev $child] || $e ni [dict get $rev $child]} {dict lappend rev $child $e}
+    if {$child eq $tl} {set found 1}
+}
+
+# The registry entry _plan_upgrade works from: the active one, else the newest.
+proc reg_pick {name} {
+    set best ""
+    foreach e [registry::entry imaged $name] {
+        if {[$e state] eq "installed"} {return $e}
+        if {$best eq "" || [vercmp [$e version] [$best version]] > 0
+            || ([vercmp [$e version] [$best version]] == 0 && [$e revision] > [$best revision])} {
+            set best $e
+        }
+    }
+    return $best
+}
+
+proc reg_field {e field default} {
+    if {[catch {$e $field} v] || $v eq ""} {return $default}
+    return $v
+}
+
+proc open_port {name variations {hint 1}} {
+    global gopts opened phase verbose
+    if {[catch {mportlookup $name} res] || [llength $res] < 2} {
+        puts stderr "warning: $name: not in the ports index, skipped"; return ""
+    }
+    set opts [dict merge $gopts [dict create subport [lindex $res 0]]]
+    # starts MacPorts' background binary-archive lookup, as upgrade does
+    if {$hint} {dict set opts mport_hint_install 1}
+    set t [clock milliseconds]
+    if {[catch {mportopen [dict get [lindex $res 1] porturl] $opts $variations} m]} {
+        puts stderr "warning: could not open $name: $m"; return ""
+    }
+    incr opened
+    vlog "\[phase $phase\] evaluated $name in [expr {[clock milliseconds] - $t}] ms"
+    if {$phase == 2 && !$verbose && $opened % 100 == 0} {
+        puts stderr "port-why: $opened Portfiles evaluated so far..."
+    }
+    return $m
+}
+
+# Would upgrade need a binary-archive lookup for this installed port at all?
+# (only to avoid pointless lookups; correctness doesn't depend on it)
+proc may_reinstall {e name} {
+    if {![catch {mportlookup $name} res] && [llength $res] >= 2} {
+        set pi [lindex $res 1]
+        if {[dict exists $pi version] && [dict exists $pi revision]} {
+            set c [vercmp [$e version] [dict get $pi version]]
+            if {$c < 0 || ($c == 0 && [vercmp [$e revision] [dict get $pi revision]] < 0)} {return 1}
+        }
+    }
+    set p [reg_field $e os_platform ""]; set mj [reg_field $e os_major ""]
+    if {$p ni {any "" 0} && $mj ne ""
+        && ($p ne $macports::os_platform || ($mj ne "any" && $mj != $macports::os_major))} {return 1}
+    return 0
+}
+
+proc archive_available {w name} {
+    global archive_checks archive_ms
+    set t [clock milliseconds]
+    if {[catch {$w eval [list _archive_available]} avail]} {set avail 0}
+    set dt [expr {[clock milliseconds] - $t}]
+    incr archive_checks
+    incr archive_ms $dt
+    vlog "  binary archive for $name: [expr {$avail ? {available} : {none}}] ($dt ms)"
+    return $avail
+}
+
+# Same test _upgrade_dependencies uses for whether build-time dep types count.
+proc from_source {m pinfo name} {
+    global source_types
+    set has 0
+    foreach t $source_types {
+        if {[dict exists $pinfo $t] && [dict get $pinfo $t] ne ""} {set has 1; break}
+    }
+    if {!$has || [macports::global_option_isset ports_binary_only]} {return 0}
+    set w [ditem_key $m workername]
+    if {[$w eval {registry_exists $subport $version $revision $portvariants}]} {return 0}
+    if {[macports::global_option_isset ports_source_only]} {return 1}
+    return [expr {![archive_available $w $name]}]
+}
+
+# forced: upgrade is rebuilding an already-installed version, so it follows
+# every dependency type without checking for an archive (build_needed).
+proc expand {l m {forced 0}} {
+    global binary_types source_types name_of
+    set pinfo [mportinfo $m]
+    set w [ditem_key $m workername]
+    set types $binary_types
+    if {$forced && ![macports::global_option_isset ports_binary_only]} {
+        lappend types {*}$source_types; note $l "from source"
+    } elseif {[from_source $m $pinfo [dict get $name_of $l]]} {
+        lappend types {*}$source_types; note $l "from source"
+    }
+    foreach t $types {
+        if {![dict exists $pinfo $t]} continue
+        foreach spec [dict get $pinfo $t] {
+            set d ""
+            catch {set d [$w eval [list _get_dep_port $spec]]}
+            if {$d eq ""} {set d [lindex [split $spec :] end]}
+            if {[registry::entry imaged $d] ne ""} {
+                set k installed
+            } elseif {[_mportispresent $m $spec]} {
+                continue
+            } else {
+                set k new
+            }
+            set dl [string tolower $d]
+            add_edge $l $dl [string range $t 8 end]
+            queue $dl $d $k
+        }
+    }
+}
+
+# Open and expand an installed port the way _plan_upgrade does.
+proc process_installed {l {m ""}} {
+    global name_of gvars
+    set name [dict get $name_of $l]
+    set e [reg_pick $name]
+    if {$e eq ""} {if {$m ne ""} {mportclose $m}; return}
+    set req [$e requested_variants]
+    if {$req eq "0"} {set req ""}
+    set vars [dict merge $gvars [parse_variants $req]]
+
+    if {![catch {mportlookup $name} res] && [llength $res] >= 2
+        && [dict exists [lindex $res 1] replaced_by]} {
+        set new [dict get [lindex $res 1] replaced_by]
+        set nl [string tolower $new]
+        if {$nl ne $l} {
+            note $l "replaced by $new"
+            add_edge $l $nl replaced_by
+            set k [expr {[registry::entry imaged $new] ne "" ? "installed" : "new"}]
+            if {$m ne ""} {mportclose $m}
+            if {[dict exists $::seen $nl]} return
+            dict set ::seen $nl 1
+            dict set name_of $nl $new
+            if {$k eq "new"} {note $nl new}
+            set rm [open_port $new $vars]
+            if {$rm ne ""} {expand $nl $rm; mportclose $rm}
+            return
+        }
+    }
+
+    if {$m eq ""} {set m [open_port $name $vars [may_reinstall $e $name]]}
+    if {$m eq ""} return
+    set pinfo [mportinfo $m]
+    set vi [$e version]; set ri [$e revision]; set ei [reg_field $e epoch 0]
+    set vt [dict get $pinfo version]; set rt [dict get $pinfo revision]
+    set et [expr {[dict exists $pinfo epoch] ? [dict get $pinfo epoch] : 0}]
+    set will_install 1
+    set override ""
+    if {[vercmp $vi $vt] > 0 || ([vercmp $vi $vt] == 0 && [vercmp $ri $rt] >= 0)} {
+        # tree version isn't newer: _plan_upgrade's rebuild overrides
+        set plat_i [reg_field $e os_platform ""]; set major_i [reg_field $e os_major ""]
+        set cxx_i [reg_field $e cxx_stdlib ""]; set cxx_ov [reg_field $e cxx_stdlib_overridden 0]
+        if {$ei < $et && $vi ne $vt} {
+            set override "upgrade ${vi}_${ri}>${vt}_${rt} (epoch)"
+        } elseif {$plat_i ni {any "" 0} && $major_i ne ""
+                  && ([_mportkey $m os.platform] ne $plat_i
+                      || ($major_i ne "any" && [_mportkey $m os.major] != $major_i))} {
+            set override "rebuild: built for $plat_i $major_i"
+        } elseif {$cxx_ov == 0 && $cxx_i in {libstdc++ libc++}
+                  && [_mportkey $m configure.cxx_stdlib] ne $cxx_i} {
+            set override "rebuild: built against $cxx_i"
+        } else {
+            set will_install 0
+            if {[dict exists $pinfo canonical_active_variants]
+                && [dict get $pinfo canonical_active_variants] ne [$e variants]} {
+                # _plan_upgrade reopens with the installed variants here
+                mportclose $m
+                set iv [dict merge [dict filter [parse_variants $req] value -] [parse_variants [$e variants]]]
+                set m [open_port $name $iv 0]
+                if {$m eq ""} return
+                set pinfo [mportinfo $m]
+            }
+        }
+    }
+    if {!$will_install} {
+        note $l installed
+    } elseif {$override ne ""} {
+        note $l $override
+    } else {
+        note $l "upgrade ${vi}_${ri}>${vt}_${rt}"
+    }
+    set already [registry::entry_exists $name [dict get $pinfo version] [dict get $pinfo revision] \
+                     [dict get $pinfo canonical_active_variants]]
+    set will_build [expr {$will_install && ($override ne "" || !$already)}]
+    expand $l $m [expr {$will_build && $already}]
+    mportclose $m
+}
+
+proc drain_new {} {
+    global newq newi name_of gvars
+    while {$newi < [llength $newq]} {
+        set l [lindex $newq $newi]; incr newi
+        set m [open_port [dict get $name_of $l] $gvars]
+        if {$m ne ""} {expand $l $m; mportclose $m}
+    }
+}
+
+# --- phase 1: outdated ports + everything they would newly install --------
+foreach r $outdated {
+    set e [reg_pick $r]
+    if {$e ne ""} {set r [$e name]}
+    set rl [string tolower $r]
+    if {[dict exists $seen $rl]} continue
+    dict set seen $rl 1
+    dict set roots $rl 1
+    dict set name_of $rl $r
+}
+# open roots in batches first so MacPorts' async archive lookups overlap
+set rootlist [dict keys $roots]
+for {set i 0} {$i < [llength $rootlist]} {incr i 16} {
+    set batch {}
+    foreach rl [lrange $rootlist $i [expr {$i + 15}]] {
+        set e [reg_pick [dict get $name_of $rl]]
+        if {$e eq ""} {puts stderr "warning: [dict get $name_of $rl] is not installed, skipped"; continue}
+        set req [$e requested_variants]
+        if {$req eq "0"} {set req ""}
+        set m ""
+        if {[catch {mportlookup [dict get $name_of $rl]} res] || [llength $res] < 2
+            || ![dict exists [lindex $res 1] replaced_by]} {
+            set m [open_port [dict get $name_of $rl] [dict merge $gvars [parse_variants $req]]]
+        }
+        lappend batch $rl $m
+    }
+    foreach {rl m} $batch {process_installed $rl $m}
+}
+drain_new
+set opened_p1 $opened
+set t1 [clock milliseconds]
+set phase_desc "new ports only"
+
+# --- phase 2: also walk installed dependencies, as port upgrade does ------
+if {(!$found && !$shallow) || $deep} {
+    set phase 2
+    set phase_desc "including installed dependencies"
+    if {!$found} {
+        puts stderr "port-why: $target isn't pulled in via outdated or new ports; now evaluating the\
+                     [expr {[llength $deferred] - $defi}]+ installed dependencies as well (one Portfile each; --shallow skips this)"
+    }
+    while {$defi < [llength $deferred] || $newi < [llength $newq]} {
+        if {$newi < [llength $newq]} {drain_new; continue}
+        set l [lindex $deferred $defi]; incr defi
+        process_installed $l
+    }
+}
+set t2 [clock milliseconds]
+set secs [format %.1f [expr {($t2 - $t0) / 1000.0}]]
+set timing "searched $opened ports in ${secs}s (phase 1: $opened_p1 ports, [format %.1f [expr {($t1 - $t0) / 1000.0}]]s"
+if {$phase == 2} {
+    append timing "; phase 2: [expr {$opened - $opened_p1}] ports, [format %.1f [expr {($t2 - $t1) / 1000.0}]]s"
+}
+append timing "; binary-archive lookups: $archive_checks, [format %.1f [expr {$archive_ms / 1000.0}]]s)"
+
+# --- report ------------------------------------------------------------------
+proc render {l} {
+    global name_of ann
+    set n [dict get $name_of $l]
+    if {[dict exists $ann $l]} {return "${n}([join [dict get $ann $l] {, }])"}
+    return $n
+}
+
+if {!$found} {
+    puts "$target is not reached from these [dict size $roots] outdated ports ($phase_desc)."
+    puts "Other ways upgrade installs ports: rev-upgrade rebuilding a broken port after\
+          the upgrade, variants given on the command line, or +universal propagation."
+    if {$phase == 1} {puts "Rerun without --shallow to also search through installed dependencies."}
+    puts $timing
+    finish 1
+}
+
+# Breadth-first from the target over reverse edges: every node is visited
+# once, so this is linear in the graph size. A root ends its branch (it is
+# where that chain starts), and each root gets one shortest chain.
+set nxt [dict create]
+set dist [dict create $tl 0]
+set culprits {}
+set bq [list $tl]; set bi 0
+while {$bi < [llength $bq]} {
+    set n [lindex $bq $bi]; incr bi
+    if {[dict exists $roots $n]} {lappend culprits [list [dict get $dist $n] [dict get $name_of $n] $n]; continue}
+    if {![dict exists $rev $n]} continue
+    foreach pe [dict get $rev $n] {
+        lassign $pe p lab
+        if {[dict exists $dist $p]} continue
+        dict set dist $p [expr {[dict get $dist $n] + 1}]
+        dict set nxt $p [list $n $lab]
+        lappend bq $p
+    }
+}
+set culprits [lsort -index 0 -integer [lsort -index 1 -dictionary $culprits]]
+if {$verbose} {
+    # size of the graph above the target: the old path enumeration's cost
+    # grew with this (exponentially with depth when ports share many dependents)
+    set redges 0
+    foreach n [lrange $bq 0 [expr {$bi - 1}]] {
+        if {![dict exists $roots $n] && [dict exists $rev $n]} {incr redges [llength [dict get $rev $n]]}
+    }
+    vlog "reverse graph above $target: [llength $bq] ports, $redges dependency edges,\
+          shortest chain [lindex $culprits 0 0] edges, longest shortest chain [lindex $culprits end 0] edges"
+}
+
+set cap 40
+set names [lsort -dictionary [lmap c $culprits {lindex $c 1}]]
+set shown [join [lrange $names 0 [expr {$cap - 1}]] {, }]
+if {[llength $names] > $cap} {append shown ", and [expr {[llength $names] - $cap}] more"}
+puts "$target is pulled in by [llength $names] of [dict size $roots] outdated ports: $shown"
+puts ""
+set src 0
+foreach c [lrange $culprits 0 [expr {$cap - 1}]] {
+    set n [lindex $c 2]
+    set s [render $n]
+    while {$n ne $tl} {
+        lassign [dict get $nxt $n] n lab
+        append s " -${lab}-> " [expr {$n eq $tl ? [dict get $name_of $n] : [render $n]}]
+    }
+    if {[string match "*from source*" $s]} {set src 1}
+    puts "  $s"
+}
+if {[llength $culprits] > $cap} {puts "  ... [expr {[llength $culprits] - $cap}] more outdated ports not shown (one shortest chain is shown per port)"}
+puts ""
+if {$src} {
+    puts "from source: build-time deps (fetch/extract/patch/build) count only because that port will"
+    puts "  be built: no binary archive available, buildfromsource always / -s, or a forced rebuild."
+}
+puts $timing
+if {$phase == 1 && !$shallow} {
+    puts "(--deep also reports paths through already-installed dependencies)"
+}
+finish 0
