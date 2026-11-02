@@ -31,6 +31,7 @@ function main()
         .assaultcube_v1.104
         .atlas
         .audacity-data
+        .aws-transform-mcp
         .bash_sessions
         .bun
         .cabal
@@ -187,6 +188,7 @@ function main()
         .nvimlog
         .nvm
         .octave_hist
+        .opencodereview
         .oracle_jre_usage
         .osquery
         .p2
@@ -213,6 +215,7 @@ function main()
         .sqlite_history
         .sunstudio
         .stack
+        .steampipe
         .swiftpm
         .swt
         .task
@@ -244,6 +247,7 @@ function main()
         .config/Trolltech.conf
         .config/user-dirs.dirs
         .config/user-dirs.locale
+        .config/git/gitignore
         .cuda-gdbinit
         .DS_Store
         .emulator_console_auth_token
