@@ -4,31 +4,39 @@
 """
 webdrop [OPTIONS...] [FILE...]
 
-Serve a phone-friendly web page on the LAN for moving files between a mobile
-device and this machine.
+Serve a phone-friendly web page on the LAN for moving files and text between a
+mobile device and this machine.
 
 Uploads land in a per-run directory under ~/Downloads (or under the current
 directory when that doesn't exist), created when the first file arrives. Any
 FILE given on the command line is offered to the browser for download;
 directories are expanded recursively.
 
+Text sent from the page is printed here. Each line typed into this terminal
+appears on the page, and so does anything piped in, as one text. The page lists
+every text sent this run, each with a copy button.
+
     webdrop                       # receive documents, photos, anything
     webdrop report.pdf notes.txt  # also hand those two files to the phone
+    pbpaste | webdrop             # hand the clipboard to the phone
     webdrop -t                    # require a random token in the URL
 
-The LAN URL is printed at startup, and drawn as a QR code when qrencode is
-installed — scanning the terminal beats typing an IP on a phone keyboard.
+The server listens on the first LAN interface (en*, eth*, wl*) that has an IPv4
+address. A VPN tunnel is never chosen, whatever its address range. The URL is
+printed at startup, and drawn as a QR code when qrencode is installed, since
+scanning the terminal beats typing an IP on a phone keyboard.
 
-Traffic is plain HTTP and, without -t, unauthenticated: everyone on the network
-can read the offered files and write into the save directory. That is the right
-trade at home and the wrong one on shared wifi, where -t makes the URL
-unguessable and the QR code keeps it free to enter.
+Traffic is plain HTTP and, without -t, unauthenticated: everyone on the LAN can
+read the offered files and the text, and write into the save directory. That is
+the right trade at home and the wrong one on shared wifi, where -t makes the
+URL unguessable and the QR code keeps it free to enter.
 
 Python 3 standard library only.
 """
 
 import argparse
 import errno
+import fcntl
 import json
 import logging
 import mimetypes
@@ -37,6 +45,7 @@ import re
 import secrets
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -58,6 +67,15 @@ DEFAULT_PORT = 8420
 CHUNK = 256 * 1024
 # Anything longer than this in a multipart header is a client bug or an attack.
 MAX_HEADER_BYTES = 16 * 1024
+# A text is held in memory and re-sent to every page, so it stays paste-sized.
+MAX_TEXT_BYTES = 1024 * 1024
+
+# Wired and wireless LAN ports: en* on macOS and in Linux's predictable names,
+# eth* and wl* in older Linux ones. Tunnels (utun*, tun*, ipsec*, ppp*) are
+# excluded by name because a VPN's addresses can sit in the same private ranges
+# as a home LAN's, so the address alone can't tell them apart.
+LAN_PREFIXES = ("en", "eth", "wl")
+SIOCGIFADDR = 0xC0206921 if sys.platform == "darwin" else 0x8915
 
 PAGE = """<!doctype html>
 <html lang="en">
@@ -123,6 +141,12 @@ li.item:first-child { border-top: 0; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--accent);
            transition: width .15s linear; }
 .empty { color: var(--muted); font-size: .9rem; }
+textarea { display: block; width: 100%; min-height: 5.5rem; resize: vertical;
+           padding: .6rem .75rem; margin-bottom: .6rem; border-radius: 12px;
+           border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+           font: inherit; }
+.msg { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+#text-state { margin-top: .5rem; }
 </style>
 </head>
 <body>
@@ -132,24 +156,24 @@ li.item:first-child { border-top: 0; }
 <div class="card">
   <div class="buttons">
     <label class="btn wide">Choose files
-      <input type="file" multiple id="pick-any">
-    </label>
-    <!-- Only capture earns a second button: it opens the camera directly
-         instead of a picker. An accept= filter would not, since the plain
-         picker already reaches the photo library on both iOS and Android. -->
-    <label class="btn ghost small wide">Camera
-      <input type="file" accept="image/*" capture="environment" id="pick-cam">
+      <input type="file" multiple id="pick">
     </label>
   </div>
   <div id="drop">or drop files here</div>
   <ul id="queue"></ul>
 </div>
 
+<h2>Text</h2>
+<div class="card">
+  <textarea id="text" placeholder="Type or paste text"></textarea>
+  <button class="btn wide" id="send-text" type="button">Send text</button>
+  <div class="state" id="text-state"></div>
+  <ul id="texts"></ul>
+</div>
+
 <div id="downloads"></div>
 
 <script>
-var DATA = __DATA__;
-
 function human(n) {
   var u = ["B", "KB", "MB", "GB", "TB"], i = 0;
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
@@ -163,14 +187,14 @@ function el(tag, cls, text) {
   return e;
 }
 
-function renderDownloads() {
+function renderDownloads(files) {
   var box = document.getElementById("downloads");
   box.textContent = "";
-  if (!DATA.files.length) return;
+  if (!files.length) return;
   var h = el("h2", null, "Receive");
   var card = el("div", "card");
   var ul = el("ul");
-  DATA.files.forEach(function (f) {
+  files.forEach(function (f) {
     var li = el("li", "item");
     var name = el("div", "name");
     var a = el("a", null, f.name);
@@ -182,7 +206,7 @@ function renderDownloads() {
     ul.appendChild(li);
   });
   card.appendChild(ul);
-  if (DATA.files.length > 1) {
+  if (files.length > 1) {
     var all = el("a", "btn ghost wide", "Download all (zip)");
     all.href = "zip";
     all.style.marginTop = ".75rem";
@@ -254,12 +278,95 @@ function pump() {
   xhr.send(fd);
 }
 
-["pick-cam", "pick-any"].forEach(function (id) {
-  document.getElementById(id).addEventListener("change", function (e) {
-    addFiles(e.target.files);
-    e.target.value = "";
+document.getElementById("pick").addEventListener("change", function (e) {
+  addFiles(e.target.files);
+  e.target.value = "";
+});
+
+// Plain HTTP is not a secure context, so navigator.clipboard is missing on
+// the phone; a selected textarea and execCommand still copy there.
+function copyText(text, btn) {
+  function done() {
+    btn.textContent = "copied";
+    setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+  }
+  function fallback() {
+    var ta = el("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (err) { /* reported below */ }
+    document.body.removeChild(ta);
+    if (ok) done(); else btn.textContent = "select it instead";
+  }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, fallback);
+  } else {
+    fallback();
+  }
+}
+
+function renderTexts(texts) {
+  var list = document.getElementById("texts");
+  list.textContent = "";
+  texts.slice().reverse().forEach(function (t) {
+    var li = el("li", "item");
+    var body = el("div", "msg", t.text);
+    body.appendChild(el("span", "sub", "from " + t.from));
+    var btn = el("button", "btn ghost small", "Copy");
+    btn.type = "button";
+    btn.addEventListener("click", function () { copyText(t.text, btn); });
+    li.appendChild(body);
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+}
+
+// The server owns the files and texts; the page shows whatever it last said.
+// Polled rather than pushed: a phone suspends a backgrounded tab's sockets,
+// and a poll simply resumes when it comes back. Each list is redrawn only
+// when it changed, so a selection or a "copied" label survives the polls.
+var shown = { files: null, texts: null };
+
+function pollState() {
+  if (document.hidden) return;
+  fetch("state").then(function (r) { return r.json(); })
+    .then(function (d) {
+      var files = JSON.stringify(d.files), texts = JSON.stringify(d.texts);
+      if (files !== shown.files) { renderDownloads(d.files); shown.files = files; }
+      if (texts !== shown.texts) { renderTexts(d.texts); shown.texts = texts; }
+    })
+    .catch(function () { /* the next poll retries */ });
+}
+
+document.getElementById("send-text").addEventListener("click", function () {
+  var box = document.getElementById("text");
+  var state = document.getElementById("text-state");
+  if (!box.value.trim()) return;
+  fetch("text", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+    body: box.value
+  }).then(function (r) {
+    if (!r.ok) return r.text().then(function (msg) { throw new Error(msg || r.status); });
+    box.value = "";
+    state.className = "state";
+    state.textContent = "";
+    pollState();
+  }).catch(function (err) {
+    state.className = "state err";
+    state.textContent = "not sent: " + err.message;
   });
 });
+
+setInterval(pollState, 2000);
+document.addEventListener("visibilitychange", pollState);
+pollState();
 
 var drop = document.getElementById("drop");
 ["dragenter", "dragover"].forEach(function (ev) {
@@ -273,8 +380,6 @@ drop.addEventListener("drop", function (e) {
 });
 window.addEventListener("dragover", function (e) { e.preventDefault(); });
 window.addEventListener("drop", function (e) { e.preventDefault(); });
-
-renderDownloads();
 </script>
 </body>
 </html>
@@ -302,8 +407,8 @@ def parse_args():
     parser.add_argument(
         "-b",
         "--bind",
-        default="0.0.0.0",
-        help="address to bind (default: %(default)s, i.e. reachable from the LAN)",
+        help="address to bind (default: the first LAN interface's address; "
+        "0.0.0.0 listens on every interface, VPN tunnels included)",
     )
     parser.add_argument(
         "-o",
@@ -319,6 +424,13 @@ def parse_args():
         default="",
         metavar="TOKEN",
         help="require a secret path segment in the URL; generated when given no value",
+    )
+    parser.add_argument(
+        "--lift-mac-firewall",
+        action="store_true",
+        help="when the macOS firewall blocks all incoming connections, open its "
+        "settings and wait for you to turn that off; at exit, open them again "
+        "to turn it back on",
     )
     parser.add_argument(
         "files",
@@ -393,17 +505,92 @@ def collect_offered(paths):
     return offered
 
 
-def lan_address():
-    """Best-effort local address the phone can actually reach."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def lan_addresses():
+    """(interface, IPv4 address) for each LAN interface that has one."""
+    found = []
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        for _, name in socket.if_nameindex():
+            if not name.startswith(LAN_PREFIXES):
+                continue
+            try:
+                reply = fcntl.ioctl(
+                    sock.fileno(), SIOCGIFADDR, struct.pack("256s", name.encode())
+                )
+            except OSError as exc:
+                if exc.errno == errno.EADDRNOTAVAIL:  # up, but no IPv4 address
+                    continue
+                raise
+            # struct ifreq: a 16-byte name, then a sockaddr_in whose address
+            # sits after 2 bytes of family and 2 of port.
+            found.append((name, socket.inet_ntoa(reply[20:24])))
+    return found
+
+
+def pick_address(bind):
+    """Returns (address to bind, address to put in the URL)."""
+    if bind and bind != "0.0.0.0":
+        return bind, bind
+    found = lan_addresses()
+    if not found:
+        LOG.error("no LAN interface (%s*) has an IPv4 address; pass -b ADDRESS",
+                  "*, ".join(LAN_PREFIXES))
+        sys.exit(1)
+    name, address = found[0]
+    LOG.info("using %s on %s", address, name)
+    for other_name, other in found[1:]:
+        LOG.info("%s also has %s; pass -b %s to serve there", other_name, other, other)
+    return bind or address, address
+
+
+BLOCK_ALL_SETTING = (
+    '"Block all incoming connections" in System Settings > Network > Firewall > Options'
+)
+
+
+def firewall_blocks_all():
+    """Whether the macOS firewall cuts every incoming connection.
+
+    In that mode the kernel completes the TCP handshake and then drops the
+    socket, so the server sees ENOTCONN and the phone an empty reply, with
+    nothing pointing at the firewall."""
     try:
-        # No packet leaves the machine; this only asks the routing table.
-        sock.connect(("8.8.8.8", 53))
-        return sock.getsockname()[0]
-    except OSError:
-        return socket.gethostbyname(socket.gethostname())
-    finally:
-        sock.close()
+        state = subprocess.run(
+            ["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getblockall"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        LOG.debug("could not read the firewall state: %s", exc)
+        return False
+    return "blocking all" in state
+
+
+def open_firewall_settings():
+    subprocess.run(
+        ["open", "x-apple.systempreferences:com.apple.Network-Settings.extension?Firewall"],
+        check=False,
+    )
+
+
+def check_firewall(bind, lift):
+    """Make sure the LAN can reach webdrop. Returns whether the user lifted
+    the firewall for this run, so they can be asked to restore it at exit."""
+    if sys.platform != "darwin" or bind.startswith("127.") or not firewall_blocks_all():
+        return False
+    if not lift:
+        LOG.error("the macOS firewall blocks all incoming connections, so no other "
+                  "device can reach webdrop. Turn off %s, or pass --lift-mac-firewall.",
+                  BLOCK_ALL_SETTING)
+        sys.exit(1)
+    open_firewall_settings()
+    LOG.warning("turn off %s for this run; webdrop starts once it is off", BLOCK_ALL_SETTING)
+    try:
+        while firewall_blocks_all():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        LOG.info("shutting down")
+        sys.exit(1)
+    LOG.info("firewall lifted")
+    return True
 
 
 def print_qr(url):
@@ -443,6 +630,38 @@ def create_unique(outdir, name):
             counter += 1
             if counter > 10000:
                 raise
+
+
+class TextBoard:
+    """Every text sent this run, from the page or the terminal, in order."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._texts = []
+
+    def add(self, text, sender):
+        with self._lock:
+            self._texts.append({"text": text, "from": sender})
+
+    def all(self):
+        with self._lock:
+            return list(self._texts)
+
+
+def relay_stdin(board):
+    """Post what arrives on stdin to the page: each line typed into a
+    terminal as its own text, or everything piped in as one."""
+    if sys.stdin.isatty():
+        for line in sys.stdin:
+            text = line.rstrip("\r\n")
+            if text.strip():
+                board.add(text, "this computer")
+    else:
+        # Trailing newlines dropped, as the shell's $(...) does: `echo` adds one.
+        text = sys.stdin.read().rstrip("\r\n")
+        if text.strip():
+            board.add(text, "this computer")
+            LOG.info("sent %d characters from stdin to the page", len(text))
 
 
 class MultipartError(ValueError):
@@ -598,6 +817,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # Set by serve()
     session = None
+    board = None
     offered = []
     prefix = ""
     head_only = False
@@ -657,6 +877,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_offered(path[len("/dl/") :])
         elif path == "/zip":
             self.send_zip()
+        elif path == "/state":
+            self.send_state()
         elif path == "/favicon.ico":
             self.send_bytes(b"", "image/x-icon", HTTPStatus.NO_CONTENT)
         else:
@@ -665,7 +887,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self.head_only = False
         path = self.route()
-        if path is None or path != "/upload":
+        if path not in ("/upload", "/text"):
             self.fail(HTTPStatus.NOT_FOUND, "not found")
             return
 
@@ -675,6 +897,27 @@ class Handler(BaseHTTPRequestHandler):
             self.fail(HTTPStatus.LENGTH_REQUIRED, "Content-Length required")
             return
 
+        if path == "/text":
+            self.receive_text(length)
+        else:
+            self.receive_upload(length)
+
+    def receive_text(self, length):
+        if length > MAX_TEXT_BYTES:
+            self.fail(HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                      "text over %d KB; send it as a file" % (MAX_TEXT_BYTES // 1024))
+            self.close_connection = True
+            return
+        text = self.rfile.read(length).decode("utf-8", "replace")
+        if not text.strip():
+            self.fail(HTTPStatus.BAD_REQUEST, "empty text")
+            return
+        sender = self.address_string()
+        self.board.add(text, sender)
+        LOG.info("text from %s:\n%s", sender, text)
+        self.send_bytes(b"", "text/plain", HTTPStatus.NO_CONTENT)
+
+    def receive_upload(self, length):
         try:
             boundary = boundary_from(self.headers.get("Content-Type", ""))
             reader = BodyReader(self.rfile, length)
@@ -702,7 +945,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"saved": saved})
 
     def send_page(self):
-        data = {
+        self.send_bytes(PAGE.encode("utf-8"), "text/html; charset=utf-8")
+
+    def send_state(self):
+        self.send_json({
             "files": [
                 {
                     "name": name,
@@ -711,9 +957,8 @@ class Handler(BaseHTTPRequestHandler):
                 }
                 for index, (name, path) in enumerate(self.offered)
             ],
-        }
-        page = PAGE.replace("__DATA__", json.dumps(data))
-        self.send_bytes(page.encode("utf-8"), "text/html; charset=utf-8")
+            "texts": self.board.all(),
+        })
 
     def send_offered(self, raw_index):
         """Serve one of the files named on the command line.
@@ -791,23 +1036,34 @@ class Server(ThreadingHTTPServer):
         if isinstance(exc, (ConnectionError, TimeoutError)):
             LOG.debug("%s went away: %s", client_address[0], exc)
             return
+        if isinstance(exc, OSError) and exc.errno == errno.ENOTCONN:
+            # Not routine: the device never got an answer.
+            LOG.warning("connection from %s was cut before its request arrived; "
+                        "the macOS firewall does this to connections it blocks",
+                        client_address[0])
+            return
         LOG.exception("error handling request from %s", client_address[0])
 
 
 def serve(args, session, offered):
     Handler.session = session
+    Handler.board = TextBoard()
     Handler.offered = offered
     Handler.prefix = "/" + args.token.strip("/") if args.token else ""
 
+    bind, host = pick_address(args.bind)
+    # Bound before the firewall is lifted, so a busy port can't end the run
+    # with the firewall left down and no reminder.
     try:
-        httpd = Server((args.bind, args.port), Handler)
+        httpd = Server((bind, args.port), Handler)
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE:
             LOG.error("port %d is already in use, pick another with -p", args.port)
             sys.exit(1)
         raise
+    lifted = check_firewall(bind, args.lift_mac_firewall)
 
-    url = "http://%s:%d%s/" % (lan_address(), args.port, Handler.prefix)
+    url = "http://%s:%d%s/" % (host, args.port, Handler.prefix)
     print_qr(url)
     LOG.info("serving %s", url)
     LOG.info("uploads go to %s", session.path)
@@ -815,6 +1071,9 @@ def serve(args, session, offered):
         LOG.info("offering %d file(s) for download", len(offered))
     if not args.token:
         LOG.warning("no token set: anyone on this network can upload and download")
+    threading.Thread(target=relay_stdin, args=(Handler.board,), daemon=True).start()
+    if sys.stdin.isatty():
+        LOG.info("type a line and press Enter to send it to the page")
 
     try:
         httpd.serve_forever()
@@ -822,6 +1081,9 @@ def serve(args, session, offered):
         LOG.info("shutting down")
     finally:
         httpd.server_close()
+        if lifted:
+            open_firewall_settings()
+            LOG.warning("turn %s back on", BLOCK_ALL_SETTING)
 
 
 def main():
